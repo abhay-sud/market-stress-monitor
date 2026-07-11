@@ -46,3 +46,53 @@ export function readDryPowderUsd(): number {
   }
   return dryPowder;
 }
+
+/**
+ * Overrides the registered's hardcoded value_usd/fx_rate_* fields with a live
+ * computation from FRED's DEXCAUS series (Canadian dollars per 1 US dollar
+ * — the CAD->USD rate is 1/dexcausValue), and recomputes the two combined
+ * totals that depend on it. Returns the original portfolio unchanged if the
+ * expected shape isn't found, so a structure mismatch degrades to "report
+ * the stale hardcoded snapshot" rather than throwing and losing the whole
+ * get_portfolio_snapshot response over one field.
+ */
+export function applyLiveFxRate(
+  portfolio: unknown,
+  dexcausValue: number,
+  asOfDate: string,
+): unknown {
+  const root = portfolio as Record<string, unknown> | null;
+  const accounts = root?.["accounts"] as Record<string, unknown> | undefined;
+  const registered = accounts?.["passive_long_duration_account"] as Record<string, unknown> | undefined;
+  const combined = root?.["combined"] as Record<string, unknown> | undefined;
+  const valueCad = registered?.["value_cad"];
+
+  if (!registered || typeof valueCad !== "number" || !combined || dexcausValue <= 0) {
+    return portfolio;
+  }
+
+  const cadToUsdRate = Math.round((1 / dexcausValue) * 10000) / 10000;
+  const registeredValueUsd = Math.round(valueCad * cadToUsdRate);
+  const registeredValueUsdOld = registered["value_usd"];
+  const shiftUsd = typeof registeredValueUsdOld === "number" ? registeredValueUsd - registeredValueUsdOld : 0;
+
+  const updatedregistered = {
+    ...registered,
+    fx_rate_cad_to_usd: cadToUsdRate,
+    fx_rate_as_of: asOfDate,
+    fx_rate_source: "FRED DEXCAUS (live, via get_portfolio_snapshot)",
+    value_usd: registeredValueUsd,
+  };
+
+  const updatedCombined = { ...combined };
+  for (const key of ["total_equity_at_risk_incl_passive_usd", "combined_value_ex_side_usd"]) {
+    const prior = updatedCombined[key];
+    if (typeof prior === "number") updatedCombined[key] = prior + shiftUsd;
+  }
+
+  return {
+    ...root,
+    accounts: { ...accounts, passive_long_duration_account: updatedregistered },
+    combined: updatedCombined,
+  };
+}
