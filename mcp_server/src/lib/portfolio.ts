@@ -35,8 +35,8 @@ export function readPortfolio(): unknown {
 export function readDryPowderUsd(): number {
   const portfolio = readPortfolio();
   const value = (portfolio as Record<string, unknown> | null)?.["accounts"];
-  const tacticalAccount = (value as Record<string, unknown> | undefined)?.["tactical"];
-  const dryPowder = (tacticalAccount as Record<string, unknown> | undefined)?.["dry_powder_usd"];
+  const tactical = (value as Record<string, unknown> | undefined)?.["tactical"];
+  const dryPowder = (tactical as Record<string, unknown> | undefined)?.["dry_powder_usd"];
 
   if (typeof dryPowder !== "number") {
     throw new Error(
@@ -71,10 +71,10 @@ export interface RateResetTriggerStatus {
 export function computeRateResetTriggerStatus(portfolio: unknown): RateResetTriggerStatus {
   const root = portfolio as Record<string, unknown> | null;
   const accounts = root?.["accounts"] as Record<string, unknown> | undefined;
-  const tacticalAccount = accounts?.["tactical"] as Record<string, unknown> | undefined;
-  const rate = tacticalAccount?.["stable_value_rate"];
-  const rateThrough = tacticalAccount?.["stable_value_rate_through"];
-  const nextReset = tacticalAccount?.["stable_value_reset_date"];
+  const tactical = accounts?.["tactical"] as Record<string, unknown> | undefined;
+  const rate = tactical?.["stable_value_rate"];
+  const rateThrough = tactical?.["stable_value_rate_through"];
+  const nextReset = tactical?.["stable_value_reset_date"];
   const nextResetStr = typeof nextReset === "string" ? nextReset : null;
 
   if (typeof rate !== "number" || typeof rateThrough !== "string") {
@@ -83,7 +83,7 @@ export function computeRateResetTriggerStatus(portfolio: unknown): RateResetTrig
       rate_pct: null,
       rate_through: null,
       next_reset_date: nextResetStr,
-      note: "No stable-value fund Anchor rate recorded locally yet (stable_value_rate/stable_value_rate_through missing).",
+      note: "No stable-value declared rate recorded locally yet (stable_value_rate/stable_value_rate_through missing).",
     };
   }
 
@@ -103,7 +103,7 @@ export function computeRateResetTriggerStatus(portfolio: unknown): RateResetTrig
 }
 
 /**
- * Overrides the registered's hardcoded value_usd/fx_rate_* fields with a live
+ * Overrides the CAD-denominated passive account's hardcoded value_usd/fx_rate_* fields with a live
  * computation from FRED's DEXCAUS series (Canadian dollars per 1 US dollar
  * — the CAD->USD rate is 1/dexcausValue), and recomputes the two combined
  * totals that depend on it. Returns the original portfolio unchanged if the
@@ -118,25 +118,25 @@ export function applyLiveFxRate(
 ): unknown {
   const root = portfolio as Record<string, unknown> | null;
   const accounts = root?.["accounts"] as Record<string, unknown> | undefined;
-  const registered = accounts?.["passive_long_duration_account"] as Record<string, unknown> | undefined;
+  const passive = accounts?.["passive_long_duration_account"] as Record<string, unknown> | undefined;
   const combined = root?.["combined"] as Record<string, unknown> | undefined;
-  const valueCad = registered?.["value_cad"];
+  const valueCad = passive?.["value_cad"];
 
-  if (!registered || typeof valueCad !== "number" || !combined || dexcausValue <= 0) {
+  if (!passive || typeof valueCad !== "number" || !combined || dexcausValue <= 0) {
     return portfolio;
   }
 
   const cadToUsdRate = Math.round((1 / dexcausValue) * 10000) / 10000;
-  const registeredValueUsd = Math.round(valueCad * cadToUsdRate);
-  const registeredValueUsdOld = registered["value_usd"];
-  const shiftUsd = typeof registeredValueUsdOld === "number" ? registeredValueUsd - registeredValueUsdOld : 0;
+  const passiveValueUsd = Math.round(valueCad * cadToUsdRate);
+  const passiveValueUsdOld = passive["value_usd"];
+  const shiftUsd = typeof passiveValueUsdOld === "number" ? passiveValueUsd - passiveValueUsdOld : 0;
 
-  const updatedregistered = {
-    ...registered,
+  const updatedPassive = {
+    ...passive,
     fx_rate_cad_to_usd: cadToUsdRate,
     fx_rate_as_of: asOfDate,
     fx_rate_source: "FRED DEXCAUS (live, via get_portfolio_snapshot)",
-    value_usd: registeredValueUsd,
+    value_usd: passiveValueUsd,
   };
 
   const updatedCombined = { ...combined };
@@ -147,7 +147,7 @@ export function applyLiveFxRate(
 
   return {
     ...root,
-    accounts: { ...accounts, passive_long_duration_account: updatedregistered },
+    accounts: { ...accounts, passive_long_duration_account: updatedPassive },
     combined: updatedCombined,
   };
 }
@@ -202,6 +202,9 @@ export function findLeakedDollarFigures(text: string, portfolio: unknown): numbe
 
 export interface DriftEntry {
   fund: string;
+  // Display name from portfolio.yaml's optional fund_labels map (local-only),
+  // so the Full Report never needs fund-family names hardcoded in code.
+  label?: string;
   actual_pct: number;
   target_pct: number;
   drift_pts: number;
@@ -235,11 +238,11 @@ function driftThresholdPts(targetPct: number): number {
  * account that defines both, flagging funds drifted beyond
  * DRIFT_THRESHOLD_PTS. Deliberately mechanical — no macro judgment, purely
  * "is this account still close to its own stated target." Accounts with no
- * formal target at all (e.g. the registered's permanent passive stance) are
+ * formal target at all (e.g. a permanently passive account) are
  * simply skipped, since there's nothing to compute a drift against.
  *
  * An account can carry a dry_powder_usd mechanism (currently just the
- * tactical retirement plan) *and* still get full per-fund drift entries below — these
+ * tactical account) *and* still get full per-fund drift entries below — these
  * are not mutually exclusive. Fund-level entries are always shown when
  * holdings/target data exists, for full visibility (explicit user
  * preference 2026-07-16, after an earlier version of this function skipped
@@ -252,7 +255,7 @@ function driftThresholdPts(targetPct: number): number {
  * silently deciding to hide it.
  *
  * Accounts with a known structural_issue note but no formal target (e.g.
- * household member retirement plan) surface that note as a standing flag instead of fabricating
+ * a monitor-only secondary account) surface that note as a standing flag instead of fabricating
  * a target that was never specified.
  */
 export function computePortfolioDrift(portfolio: unknown): {
@@ -261,6 +264,7 @@ export function computePortfolioDrift(portfolio: unknown): {
 } {
   const root = portfolio as Record<string, unknown> | null;
   const accounts = (root?.["accounts"] as Record<string, unknown> | undefined) ?? {};
+  const fundLabels = (root?.["fund_labels"] as Record<string, unknown> | undefined) ?? {};
   const result: AccountDrift[] = [];
   const standingFlags: string[] = [];
 
@@ -286,8 +290,10 @@ export function computePortfolioDrift(portfolio: unknown): {
         const tgt = target[fund] ?? 0;
         const drift = Math.round((actual - tgt) * 10) / 10;
         const threshold = driftThresholdPts(tgt);
+        const fundLabel = fundLabels[fund];
         return {
           fund,
+          ...(typeof fundLabel === "string" ? { label: fundLabel } : {}),
           actual_pct: actual,
           target_pct: tgt,
           drift_pts: drift,
