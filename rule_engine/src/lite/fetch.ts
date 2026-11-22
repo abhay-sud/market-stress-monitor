@@ -6,7 +6,7 @@
 // S&P 500 and VIX: Yahoo's chart API (no key, same-day closes, completed
 // sessions only), FRED as the fallback. The full S&P history is fetched so
 // the all-time high is the real one. HY spread, 10-year yield and the Sahm
-// rule: FRED.
+// rule: FRED, with the 10-year's newest days filled from Treasury.
 
 import type { Point } from "../sp500History.js";
 
@@ -97,6 +97,49 @@ async function fred(seriesId: string, fromDate: string, apiKey: string): Promise
   return (body.observations ?? []).filter((o) => o.value !== ".").map((o) => ({ date: o.date, value: Number(o.value) }));
 }
 
+// Daily Treasury Par Yield Curve: the source of FRED's DGS10. Treasury posts
+// each day's curve that afternoon; FRED gets it a business day or more later.
+// Used only to FILL dates FRED hasn't posted yet (FRED stays authoritative),
+// exactly as the live ingest does (ingestion/src/sources/treasury.ts and
+// fred.ts; copied, since the packages stay independent).
+const CURVE_URL = "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv/all";
+
+/** The "10 Yr" column of one month's par-curve CSV, as points. */
+export function parseTreasury10y(text: string): Point[] {
+  if (text.trim() === "") return []; // a month with no trading days yet comes back empty
+  const lines = text.trim().split(/\r?\n/);
+  const header = (lines[0] ?? "").split(",").map((h) => h.replace(/"/g, "").trim());
+  const dateCol = header.indexOf("Date");
+  const tenCol = header.indexOf("10 Yr");
+  if (dateCol < 0 || tenCol < 0) throw new Error("Treasury curve CSV is missing the Date or 10 Yr column");
+  const out: Point[] = [];
+  for (const line of lines.slice(1)) {
+    const cells = line.split(",").map((c) => c.replace(/"/g, "").trim());
+    const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(cells[dateCol] ?? "");
+    const value = Number(cells[tenCol]);
+    if (m && cells[tenCol] !== "" && Number.isFinite(value)) out.push({ date: `${m[3]}-${m[1]}-${m[2]}`, value });
+  }
+  return out;
+}
+
+async function treasury10y(now: Date = new Date()): Promise<Point[]> {
+  const out: Point[] = [];
+  for (const back of [1, 0]) {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - back, 1));
+    const month = `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+    const res = await fetchWithRetry(`${CURVE_URL}/${month}?type=daily_treasury_yield_curve&field_tdr_date_value_month=${month}&page&_format=csv`);
+    if (!res.ok) throw new Error(`Treasury curve ${month}: HTTP ${res.status}`);
+    out.push(...parseTreasury10y(await res.text()));
+  }
+  return out;
+}
+
+/** FRED's points plus Treasury's for dates after FRED's latest. */
+export function fillAfter(fredPoints: Point[], fill: Point[]): Point[] {
+  const last = fredPoints.reduce((m, p) => (p.date > m ? p.date : m), "");
+  return [...fredPoints, ...fill.filter((p) => p.date > last)].sort((a, b) => a.date.localeCompare(b.date));
+}
+
 async function withFallback(
   name: string,
   primary: () => Promise<Point[]>,
@@ -127,7 +170,15 @@ export async function fetchLiteHistory(fredApiKey: string, fromDate: string): Pr
     fred("SAHMREALTIME", fromDate, fredApiKey),
   ]);
   sources.hy_spread = "FRED BAMLH0A0HYM2";
-  sources.treasury_10y = "FRED DGS10";
+  let dgs10Filled = dgs10;
+  try {
+    dgs10Filled = fillAfter(dgs10, await treasury10y());
+    const added = dgs10Filled.length - dgs10.length;
+    sources.treasury_10y = added ? `FRED DGS10 + Treasury (${added} newer day${added > 1 ? "s" : ""})` : "FRED DGS10";
+  } catch (err) {
+    console.warn(`treasury_10y: Treasury fill skipped, FRED only (${err instanceof Error ? err.message : String(err)})`);
+    sources.treasury_10y = "FRED DGS10";
+  }
   sources.sahm_rule = "FRED SAHMREALTIME";
-  return { sp500, vix, hy_spread_pct: hy, treasury_10y: dgs10, sahm_rule: sahm, sources };
+  return { sp500, vix, hy_spread_pct: hy, treasury_10y: dgs10Filled, sahm_rule: sahm, sources };
 }

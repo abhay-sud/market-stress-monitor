@@ -129,7 +129,31 @@ describe("detectEvents", () => {
   });
 });
 
+describe("Treasury 10-year fill", () => {
+  it("parses the 10 Yr column and fills only dates after FRED's latest", async () => {
+    const { parseTreasury10y, fillAfter } = await import("./fetch.js");
+    const csv = ['Date,"1 Mo","10 Yr","30 Yr"', "11/20/2026,4.1,4.92,5.1", "11/19/2026,4.1,5.04,5.2", "11/18/2026,4.1,,5.2", ""].join("\r\n");
+    expect(parseTreasury10y(csv)).toEqual([{ date: "2026-11-20", value: 4.92 }, { date: "2026-11-19", value: 5.04 }]);
+    expect(parseTreasury10y("")).toEqual([]);
+    expect(() => parseTreasury10y(["Date,1 Mo", "11/20/2026,4.1"].join("\n"))).toThrow(/10 Yr/);
+    const fred = [{ date: "2026-11-18", value: 5.07 }, { date: "2026-11-19", value: 5.04 }];
+    expect(fillAfter(fred, [{ date: "2026-11-19", value: 9.99 }, { date: "2026-11-20", value: 4.92 }])).toEqual([...fred, { date: "2026-11-20", value: 4.92 }]);
+  });
+});
+
 describe("formatBrief", () => {
+  it("shows the date of a reading older than the S&P close", () => {
+    const n = 3;
+    const d = replay(
+      { sp500: flat(n, 100), vix: flat(n, 15), hy_spread_pct: series([4, 4]), treasury_10y: flat(n, 4.5), sahm_rule: flat(n, 0.1) },
+      { from: day(0), fedPivot: "NONE" },
+    );
+    const { body } = formatBrief(d[2], { fedPivotSet: true });
+    expect(body).toContain("High-yield spread 400 bp (Jan 6)"); // last reading a day before the S&P close
+    expect(body).toContain("10-year Treasury 4.50%"); // same day: no date
+    expect(body).not.toContain("10-year Treasury 4.50% (");
+  });
+
   it("lists RED and AMBER readings, the gate, the risk band and what's closest to RED", () => {
     const d = days([100, 100, 100], [36, 36, 36]);
     const { title, body } = formatBrief(d[2], { fedPivotSet: false });

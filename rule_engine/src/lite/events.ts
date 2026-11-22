@@ -12,11 +12,17 @@ export interface LiteEvent {
   body: string;
 }
 
+// A daily reading older than the S&P close it's shown with gets its date,
+// e.g. the high-yield spread, which ICE posts the next morning. (The Sahm
+// rule is monthly, so its date is never shown.)
+const asOf = (d: DayState, k: "vix" | "hy_spread_pct" | "treasury_10y") =>
+  d.inputs[k].observation_date < d.date ? ` (${shortDate(d.inputs[k].observation_date).slice(4)})` : "";
+
 export const INDICATORS: { key: NumericIndicator; name: string; fmt: (d: DayState) => string }[] = [
-  { key: "vix", name: "VIX", fmt: (d) => d.inputs.vix.value.toFixed(2) },
-  { key: "hy_spread", name: "High-yield spread", fmt: (d) => `${Math.round(d.hy_spread_bps)} bp` },
+  { key: "vix", name: "VIX", fmt: (d) => `${d.inputs.vix.value.toFixed(2)}${asOf(d, "vix")}` },
+  { key: "hy_spread", name: "High-yield spread", fmt: (d) => `${Math.round(d.hy_spread_bps)} bp${asOf(d, "hy_spread_pct")}` },
   { key: "sp_drawdown", name: "S&P 500 drawdown", fmt: (d) => `${d.sp_drawdown_pct.toFixed(1)}%` },
-  { key: "treasury_10y", name: "10-year Treasury", fmt: (d) => `${d.inputs.treasury_10y.value.toFixed(2)}%` },
+  { key: "treasury_10y", name: "10-year Treasury", fmt: (d) => `${d.inputs.treasury_10y.value.toFixed(2)}%${asOf(d, "treasury_10y")}` },
   { key: "sahm_rule", name: "Sahm rule", fmt: (d) => d.inputs.sahm_rule.value.toFixed(2) },
 ];
 
