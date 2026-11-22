@@ -293,6 +293,12 @@ never reaches the public repo or the public tables.
   on any dollar figure. `write_snapshot` also refuses public text containing
   any of the policy's private terms (account names, "watchlist") and keeps
   only market-event triggers on the public row.
+- **A leak guard on every push.** A dependency-free pre-push hook
+  ([`.githooks/leak-guard.mjs`](.githooks/leak-guard.mjs)) checks each new
+  commit's changes, file names, message and author against the personal
+  terms, tickers, fund names and dollar figures in the gitignored local
+  files, plus common secret patterns, and blocks the push on any hit. The
+  sensitive lists are read at push time, so they never enter the repo.
 - **Dollar amounts are computed at read time.** The policy stores wave
   splits as percentages of the cash reserve; the MCP server applies them to
   the local balance, and the result stays in the chat.
@@ -379,6 +385,11 @@ Then:
    See [`full_report_site/README.md`](full_report_site/README.md).
 
 `npm run typecheck` works in all three packages.
+
+If you keep personal data in `local_state/` and push to a public fork, turn
+on the leak guard once per clone: `git config core.hooksPath .githooks`,
+then copy `local_state/leak-guard.example.yaml` to `leak-guard.yaml` and
+add your own name and email.
 
 ## Project structure
 

@@ -1,0 +1,16 @@
+# Template for local_state/leak-guard.yaml (the real file is gitignored).
+# The pre-push leak guard (.githooks/leak-guard.mjs) already reads your
+# policy private terms, watchlist tickers, fund names and dollar figures from
+# the other local_state files. This file adds what those don't cover.
+
+# Extra strings that must never be pushed: your full name, personal email,
+# old usernames, home-folder paths, personal domains. Case-insensitive.
+extra_terms:
+  - Jane Example
+  - jane.example@mail.example
+  - C:\Users\jane
+
+# Terms from the lists above that are fine in the public code (generic words
+# the code uses on purpose). Case-insensitive, exact match.
+allow_terms:
+  - watchlist

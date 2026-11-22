@@ -115,11 +115,20 @@ install/build steps.
    `private_data_points` table, personal triggers and wave status to
    `full_report_snapshots`; `write_snapshot` rejects public text containing
    the policy's `private_terms`.
+6. A pre-push leak guard (`.githooks/leak-guard.mjs`, enabled per clone
+   with `git config core.hooksPath .githooks`) blocks any push whose new
+   commits contain the policy's private terms, watchlist tickers, fund
+   names, dollar figures, the extra identity terms in
+   `local_state/leak-guard.yaml`, secrets or real `local_state` files. It
+   reads those lists from the gitignored local files at push time. Don't
+   bypass it with `--no-verify`; fix the commit, or add a genuine false
+   positive to `allow_terms` in the local file.
 
 ## Do not
 
-- Don't add a CI linter, pre-commit hook, or test framework — single
-  maintainer, zero ongoing-maintenance budget.
+- Don't add a CI linter, another git hook, or test framework — single
+  maintainer, zero ongoing-maintenance budget. The pre-push leak guard is
+  the one deliberate exception (personal-data safety, no dependencies).
 - Don't rename or move `reference_docs/rules/crash-check-rules.md`,
   `reference_docs/rules/project-instructions.md` or
   `reference_docs/rules/portfolio-review-template.html` — all three are read
