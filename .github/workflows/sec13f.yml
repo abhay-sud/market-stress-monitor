@@ -20,6 +20,9 @@ on:
 
 jobs:
   sec13f:
+    # Full pipeline only: this repo, or a copy that set the MSM_MODE=full variable
+    # (a copy without Supabase secrets runs run-your-own.yml instead).
+    if: github.repository == 'abhay-sud/market-stress-monitor' || vars.MSM_MODE == 'full'
     runs-on: ubuntu-latest
     defaults:
       run:

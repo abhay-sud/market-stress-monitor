@@ -33,3 +33,6 @@ Thumbs.db
 
 # Private research review bundles (unpacked by external reviewers); never commit
 review_bundle/
+
+# "Run your own" runner state (rule_engine/src/lite; cached by run-your-own.yml)
+.lite-state/

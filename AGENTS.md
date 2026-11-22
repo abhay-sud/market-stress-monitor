@@ -52,9 +52,11 @@ All three packages require Node >=22 (`engines.node` in each
 ## Working-directory convention
 
 GitHub Actions workflows (`.github/workflows/ingest.yml`,
-`backfill.yml`, `sec13f.yml`) each set `defaults.run.working-directory`
-to the one package they invoke, then `npm ci` + a single `npm run
-<script>`. Match this convention for any new workflow or local script:
+`backfill.yml`, `sec13f.yml`, `run-your-own.yml`) each set
+`defaults.run.working-directory` to the one package they invoke, then
+`npm ci` + a single `npm run <script>`. The first three run only in this
+repo or a copy that sets the `MSM_MODE=full` variable; `run-your-own.yml`
+runs on schedule only in other copies (manual runs work anywhere). Match this convention for any new workflow or local script:
 operate from inside one package's directory, never add root-level
 install/build steps.
 

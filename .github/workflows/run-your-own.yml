@@ -1,0 +1,80 @@
+name: Run your own (market stress alerts)
+
+# The alerts-only copy of the monitor for anyone who forks or copies this repo:
+# a daily brief and event alerts on their phone, no database and no website.
+# Setup: docs/run-your-own.md. Code: rule_engine/src/lite/.
+#
+# Scheduled runs happen only in copies (not in the upstream repo, which runs
+# the full pipeline in ingest.yml, unless that copy set MSM_MODE=full).
+# Manual runs work anywhere.
+on:
+  schedule:
+    # Weekdays 22:30 UTC: 5:30pm EST / 6:30pm EDT, after the US close and
+    # VIX's 4:15pm settlement, so the run sees the same day's closes.
+    - cron: "30 22 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      test:
+        description: "Send a 'You're set up' message plus today's brief"
+        type: boolean
+        default: false
+      dry_run:
+        description: "Print what would be sent; send nothing"
+        type: boolean
+        default: false
+
+concurrency:
+  group: run-your-own
+  cancel-in-progress: false
+
+jobs:
+  alerts:
+    if: github.event_name == 'workflow_dispatch' || (github.repository != 'abhay-sud/market-stress-monitor' && vars.MSM_MODE != 'full')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: rule_engine
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: rule_engine/package-lock.json
+
+      - run: npm ci
+
+      # The only state kept between runs: three dates (last S&P date
+      # processed, last brief, last stale-data alert). No market or personal
+      # data. Each run saves a new cache entry; the newest is restored.
+      - uses: actions/cache/restore@v4
+        with:
+          path: rule_engine/.lite-state
+          key: lite-state-${{ github.run_id }}
+          restore-keys: lite-state-
+
+      - run: npm run lite -- $FLAGS
+        env:
+          FLAGS: ${{ inputs.test && '--test' || '' }} ${{ inputs.dry_run && '--dry-run' || '' }}
+          LITE_STATE_FILE: .lite-state/state.json
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          # Notification channels: set the secrets for at least one.
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          NTFY_SERVER: ${{ vars.NTFY_SERVER }}
+          ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          # Optional.
+          MY_PLAN: ${{ secrets.MY_PLAN }}
+          BRIEF: ${{ vars.BRIEF }}
+          FED_PIVOT: ${{ vars.FED_PIVOT }}
+
+      - uses: actions/cache/save@v4
+        if: success() && !inputs.test && !inputs.dry_run
+        with:
+          path: rule_engine/.lite-state
+          key: lite-state-${{ github.run_id }}

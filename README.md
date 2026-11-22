@@ -324,6 +324,17 @@ Found a problem with any of this? See [`SECURITY.md`](SECURITY.md).
 > product. If you only want the signals, use the
 > [live dashboard](https://marketstress.org/).
 
+### Alerts only: your own copy in ten minutes
+
+Get the six-indicator reading every weekday evening and an alert when
+something changes, on your phone (ntfy, Telegram, Discord, Slack or email).
+Fork the repo, add a free FRED key and one notification secret, and switch on
+GitHub Actions. No database, no website, nothing to install. You can also add
+your own wave triggers and get a private alert when one is hit. Same rules and
+code as the live site.
+
+**[Set it up: docs/run-your-own.md](docs/run-your-own.md)**
+
 ### Quick look: no keys, no accounts
 
 The rule logic is pure functions with tests, so you can read and run it
@@ -395,7 +406,7 @@ add your own name and email.
 
 ```
 ingestion/            data sources → Supabase, plausibility-guarded
-rule_engine/          deterministic panel, stress gate, risk band
+rule_engine/          deterministic panel, stress gate, risk band; src/lite/ = run-your-own alerts
 mcp_server/           local MCP tools (21), wave evaluation, wave-trigger alert
 dashboard_site/       public dashboard (static, Cloudflare Pages)
 full_report_site/     private Full Report page (Cloudflare Pages Function)
@@ -404,8 +415,8 @@ reference_docs/rules/ rules doc, workflow instructions, review template
 reference_docs/       hazard-model explainer and rebuild brief, external-review summary, specs
 supabase/migrations/  schema + row-level security
 local_state/          *.example.yaml templates; real files are gitignored
-docs/                 screenshots and demo
-.github/workflows/    daily ingest + classify, backfill, SEC 13F
+docs/                 run-your-own setup guide, screenshots and demo
+.github/workflows/    daily ingest + classify, backfill, SEC 13F, run-your-own alerts
 ```
 
 ## Contributing, security and status
