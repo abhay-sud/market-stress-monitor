@@ -13,6 +13,9 @@
 //   run_at order with the same computeConfirmation the rule engine used,
 //   so the result matches what classify() would have stored.
 // Whichever pathway reaches the higher wave wins; a tie reports FAST_PANIC.
+//
+// Copied into rule_engine/src/lite/plan.ts for "run your own" users' own
+// triggers (packages stay independent); change both together.
 
 import type { Policy, Wave } from "./waveDeployment.js";
 

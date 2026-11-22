@@ -1,48 +1,111 @@
-// "Run your own" (Tier 1) entry point: `npm run lite [-- --dry-run]`.
-// Fetches the six panel inputs from public sources, replays them through the
-// live engine's rules and prints today's state. Event detection,
-// notifications and the personal plan come in the next build steps
-// (reference_docs/BUILD_SPEC_run_your_own.md).
+// "Run your own" (Tier 1) entry point, from rule_engine/:
+//   npm run lite                 fetch, replay, send what's due, save state
+//   npm run lite -- --dry-run    print what would be sent; send and save nothing
+//   npm run lite -- --test       send "You're set up" plus today's brief; save nothing
+//
+// Settings (environment; in GitHub Actions, repository secrets and variables):
+//   FRED_API_KEY (required), one notification channel (see notify.ts),
+//   BRIEF=daily|weekly|off, FED_PIVOT=NONE|PAUSE|CUT, MY_PLAN (wave triggers, YAML),
+//   LITE_STATE_FILE (default .lite-state/state.json; the workflow caches it).
+// Spec: reference_docs/BUILD_SPEC_run_your_own.md.
 
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import { fetchLiteHistory } from "./fetch.js";
 import { replay, type DayState } from "./replay.js";
+import { formatBrief } from "./events.js";
+import { parsePlan } from "./plan.js";
+import { channelsFromEnv, sendAll, type Message } from "./notify.js";
+import { briefMode, decideRun, EMPTY_STATE, type LiteState } from "./decide.js";
 import type { FedPivotSignal } from "../panelStep.js";
 
 const REPLAY_YEARS = 2;
+const args = new Set(process.argv.slice(2));
+const dryRun = args.has("--dry-run");
+const test = args.has("--test");
 
-function fedPivotSetting(): FedPivotSignal {
+function fedPivotSetting(): { value: FedPivotSignal; set: boolean } {
   const v = (process.env.FED_PIVOT ?? "").trim().toUpperCase();
-  if (v === "" || v === "NONE") return "NONE";
-  if (v === "PAUSE" || v === "CUT") return v;
-  throw new Error(`FED_PIVOT must be NONE, PAUSE or CUT (got an unrecognised value)`);
+  if (v === "") return { value: "NONE", set: false };
+  if (v === "NONE" || v === "PAUSE" || v === "CUT") return { value: v, set: true };
+  throw new Error("FED_PIVOT must be NONE, PAUSE or CUT");
+}
+
+function loadState(path: string): LiteState {
+  if (!existsSync(path)) return EMPTY_STATE;
+  try {
+    return { ...EMPTY_STATE, ...(JSON.parse(readFileSync(path, "utf-8")) as Partial<LiteState>) };
+  } catch {
+    console.warn("state file unreadable; starting fresh (alerts only for the latest date)");
+    return EMPTY_STATE;
+  }
 }
 
 export function summarize(d: DayState): string {
-  const fmt = (n: number, dp = 2) => n.toFixed(dp);
-  const lines = [
-    `As of ${d.date}`,
-    `VIX ${fmt(d.inputs.vix.value)} ${d.vix_color} · HY spread ${fmt(d.hy_spread_bps, 0)}bp ${d.hy_spread_color} · ` +
-      `S&P drawdown ${fmt(d.sp_drawdown_pct, 1)}% ${d.sp_drawdown_color} · 10Y ${fmt(d.inputs.treasury_10y.value)}% ${d.treasury_10y_color} · ` +
-      `Sahm ${fmt(d.inputs.sahm_rule.value)} ${d.sahm_rule_color} · Fed pivot ${d.inputs.fed_pivot_signal} ${d.fed_pivot_color}`,
-    `RED ${d.red_count} of 6, confirmed ${d.confirmed_red_count}; stress gate ${d.wave_authorized ? "met" : "not met"}`,
-    `Drawdown risk band: ${d.dd_vix_band ?? "not scored (drawdown already 10%+)"}`,
-    `Drawdown episode: ${d.sp500_trough !== null ? `trough ${fmt(d.sp500_trough)} on ${d.sp500_trough_date}` : "none"}; ` +
-      `trading days since a 252-day low: ${d.sp500_days_since_252d_low}`,
-  ];
-  return lines.join("\n");
+  return [
+    `As of ${d.date}: ${d.red_count} of 6 RED, ${d.confirmed_red_count} confirmed; stress gate ${d.wave_authorized ? "met" : "not met"}`,
+    `drawdown ${d.sp_drawdown_pct.toFixed(1)}%, VIX ${d.inputs.vix.value.toFixed(2)}, risk band ${d.dd_vix_band ?? "not scored"}`,
+  ].join("; ");
 }
 
 async function main() {
-  const apiKey = process.env.FRED_API_KEY;
-  if (!apiKey) throw new Error("FRED_API_KEY is not set (free key: https://fred.stlouisfed.org/docs/api/api_key.html)");
-  const fedPivot = fedPivotSetting();
-  const from = new Date(Date.now() - REPLAY_YEARS * 365.25 * 86400_000).toISOString().slice(0, 10);
+  const channels = channelsFromEnv(process.env);
+  if (!dryRun && channels.length === 0) {
+    throw new Error("No notification channel is set up. Add NTFY_TOPIC (or Telegram, Discord or Slack secrets); see docs/run-your-own.md.");
+  }
+  const send = async (m: Message) => {
+    const partial = await sendAll(channels, m);
+    for (const f of partial) console.warn(`channel failed: ${f}`);
+  };
 
-  const history = await fetchLiteHistory(apiKey, from);
-  console.log(`Sources: ${Object.entries(history.sources).map(([k, v]) => `${k}=${v}`).join(", ")}`);
-  const days = replay(history, { from, fedPivot });
-  if (days.length === 0) throw new Error("No days to replay: a series returned no data");
-  console.log(summarize(days[days.length - 1]));
+  try {
+    const apiKey = process.env.FRED_API_KEY;
+    if (!apiKey) throw new Error("FRED_API_KEY is not set (free key: https://fred.stlouisfed.org/docs/api/api_key.html)");
+    const fed = fedPivotSetting();
+    const brief = briefMode(process.env.BRIEF);
+    const plan = process.env.MY_PLAN?.trim() ? parsePlan(process.env.MY_PLAN) : null;
+    const from = new Date(Date.now() - REPLAY_YEARS * 365.25 * 86_400_000).toISOString().slice(0, 10);
+
+    const history = await fetchLiteHistory(apiKey, from);
+    console.log(`sources: ${Object.entries(history.sources).map(([k, v]) => `${k}=${v}`).join(", ")}`);
+    const days = replay(history, { from, fedPivot: fed.value });
+    if (days.length === 0) throw new Error("no days to replay: a data source returned nothing");
+    const latest = days[days.length - 1];
+    console.log(summarize(latest));
+    console.log(`plan: ${plan ? "set" : "not set"}; brief: ${brief}; channels: ${channels.map((c) => c.name).join(", ") || "none"}`);
+
+    if (test) {
+      await send({ title: "You're set up", body: "Market stress alerts are working. This is a test; your daily brief and alerts will follow on schedule.", priority: "default" });
+      await send({ ...formatBrief(latest, { fedPivotSet: fed.set }), priority: "default" });
+      console.log("test messages sent");
+      return;
+    }
+
+    const statePath = process.env.LITE_STATE_FILE || ".lite-state/state.json";
+    const state = loadState(statePath);
+    const decision = decideRun(days, state, { brief, runDate: new Date().toISOString().slice(0, 10), plan, fedPivotSet: fed.set });
+    for (const line of decision.log) console.log(line);
+
+    if (dryRun) {
+      for (const m of decision.messages) {
+        // Plan alerts never go to the log: on a public fork it's public.
+        console.log(m.personal ? "\n[plan alert: sent to your channels only]" : `\n[${m.priority}] ${m.title}\n${m.body}`);
+      }
+      console.log(`\n(dry run: ${decision.messages.length} message(s) not sent; state not saved)`);
+      return;
+    }
+
+    for (const m of decision.messages) await send(m);
+    mkdirSync(dirname(statePath), { recursive: true });
+    writeFileSync(statePath, JSON.stringify(decision.next, null, 2) + "\n");
+    console.log(`sent ${decision.messages.length} message(s); state saved`);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!dryRun && channels.length) {
+      await sendAll(channels, { title: "Market stress run failed", body: `This run failed: ${msg}. The next scheduled run will retry.`, priority: "high" }).catch(() => undefined);
+    }
+    throw err;
+  }
 }
 
 main().catch((err) => {

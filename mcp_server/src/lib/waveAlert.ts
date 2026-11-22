@@ -8,6 +8,9 @@
 //
 // Wave triggers are personal policy (local_state/policy.yaml), so this runs
 // locally (src/scripts/waveAlert.ts via Task Scheduler), never in GitHub Actions.
+//
+// Copied into rule_engine/src/lite/plan.ts for "run your own" users' own
+// triggers (packages stay independent); change both together.
 
 export type WaveLevel = "NONE" | "WAVE_1" | "WAVE_2" | "WAVE_3";
 

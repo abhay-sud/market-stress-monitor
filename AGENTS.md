@@ -20,7 +20,7 @@ diagram. Four independent Node packages, each with its own
 | Package | Role | Run from |
 |---|---|---|
 | `ingestion/` | Pulls FRED/EIA/CBOE/Massive/Polymarket/SEC data into Supabase `data_points`. No LLM, no classification logic. | `ingestion/` |
-| `rule_engine/` | Deterministic RED/AMBER/GREEN classification, the 3-of-6 stress gate (information only since 2026-11-19), hazard model. Reads `data_points`, writes `crash_checks`. | `rule_engine/` |
+| `rule_engine/` | Deterministic RED/AMBER/GREEN classification, the 3-of-6 stress gate (information only since 2026-11-19), hazard model. Reads `data_points`, writes `crash_checks`. The per-day panel logic is `src/panelStep.ts`, shared with `src/lite/` (the "run your own" alerts-only copy, `npm run lite`, no database; spec `reference_docs/BUILD_SPEC_run_your_own.md`). | `rule_engine/` |
 | `mcp_server/` | Local stdio MCP server for Claude Desktop. Merges Supabase state with `local_state/portfolio.yaml` at read-time only — never writes portfolio data anywhere. Run via `npx tsx src/server.ts` from this working tree (not published/installed). | `mcp_server/` |
 | `dashboard_site/` + `full_report_site/` | Static Cloudflare Pages sites (no build step, no `package.json`). `full_report_site` has a Pages Function (`functions/index.ts`) behind Cloudflare Access. `dashboard_site/_worker.js` (scoped by `_routes.json` to `/`, the tab URLs `/smart-money`, `/macro`, `/views` and `/latest.md`) puts the latest reading into the HTML for crawlers and AI tools, sets each tab URL's title/description/canonical (`TAB_PAGES`, mirrored by `TAB_PATHS`/`TAB_TITLES` in `index.html`) and renders `analyst_views.json` as HTML at `/views`; it copies the indicator formats and the drawdown-risk-band labels, rates and fallback formula (`ddVixReading`) from `index.html` and targets `#stress-verdict` / `#site-summary`, so change them together. | n/a |
 | `supabase/migrations/` | SQL migrations. The Supabase GitHub integration applies new ones automatically on every push to `main` (its history is `supabase_migrations.schema_migrations`); don't also run them by hand. Push a migration one push before any code that needs it, and never edit or rename one already pushed. | n/a |
@@ -75,7 +75,10 @@ install/build steps.
      are evaluated locally by `mcp_server/src/lib/waveEvaluation.ts` from
      public inputs the rule engine publishes (drawdown, VIX,
      `sp500_days_since_252d_low`). The rule engine never decides waves and
-     no wave field is stored on the public `crash_checks` table.
+     no wave field is stored on the public `crash_checks` table. The "run
+     your own" copy evaluates a user's own triggers with copies of
+     `waveEvaluation.ts` and `waveAlert.ts` in `rule_engine/src/lite/plan.ts`;
+     change them together.
 
    The prose rationale stays in `reference_docs/rules/crash-check-rules.md`.
    After any change, run `npm run typecheck` and `npm test` in both
@@ -91,7 +94,8 @@ install/build steps.
    drawdown % + VIX / 5, cutoffs 8.5 / 10) lives in
    `rule_engine/src/hazardScorecard.ts` and is copied, with its hit rates,
    into `dashboard_site/index.html`, `dashboard_site/_worker.js`,
-   `mcp_server/src/server.ts` and `full_report_site/functions/index.ts`.
+   `mcp_server/src/server.ts`, `full_report_site/functions/index.ts` and
+   `rule_engine/src/lite/events.ts`.
    Those cutoffs were fixed before any live outcome and must not be
    retuned from live results.
    The scenario prior (`config/scenario_prior_v1.json`: the historical
