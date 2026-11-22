@@ -1,5 +1,12 @@
 # Crash-Check Enhancements — Build Spec (E1–E9)
 
+> **Status: complete (all shipped 2026-11-13/14; E6 rejected). Kept as the
+> build record.** Nothing here is pending. Current behaviour is described in
+> `reference_docs/rules/crash-check-rules.md` ("Context-Only Enhancement
+> Indicators", "Event-conditional scenarios") and the code; where this file
+> and those disagree, they win. The guardrails below still apply to any new
+> context indicator.
+
 Prepared 2026-11-13. Source: review of Ritesh Jain's (PineTree Macro) Sep 2026 webinar against the crash-check system.
 Revised 2026-11-13 with the decisions from the first review pass (marked **Decision** below). This file is the source of truth for the build; update it in the same commit as any decision change.
 
@@ -133,7 +140,7 @@ Revised 2026-11-13 with the decisions from the first review pass (marked **Decis
 - **Provisional escalation:** a CoreWeave credit event, or ORCL CDS > 400bp.
 - **Acceptance:** `get_rules` returns the new signal under Type D; step 6 text references it; the "ALL THREE" criteria are unchanged.
 
-## E7 — Distance-to-RED view · Priority 5 · Status: built, waiting on the migration before push
+## E7 — Distance-to-RED view · Priority 5 · Status: done
 
 - **Pre-step done (2026-11-13):** user confirmed 4.3% is the intended 10yr AMBER line. The duplicate "10yr Treasury: amber above 4.5%, RED above 5.0%" line was **deleted** from "Additional bond-market bands" (the panel table is the single source); the 30yr, FedWatch and CAPE lines stay.
 - **Built:** `PANEL_BANDS` + `CONFIRMATION_REQUIRED_DAYS` exported from `rules.ts` (band functions now read them; existing boundary tests unchanged and passing); pure `computeDistanceToRed()` + 6 Vitest cases; `classify.ts` writes `crash_checks.distance_to_red` (migration `20261113000000_distance_to_red.sql`); `write_snapshot` carries it forward; `get_indicator_panel` returns it; dashboard "Distance to red" section under the gate panel (bars 0 → RED line, dashed AMBER tick, thresholds read from the row, none hardcoded); rules doc paragraph in "6-Indicator Panel"; one sentence in project-instructions step 1.
@@ -198,7 +205,7 @@ Revised 2026-11-13 with the decisions from the first review pass (marked **Decis
 - **Acceptance:** value + deltas returned; `red_count` unchanged.
 - **Depends on:** E9
 
-## E8 — Event-conditional scenario splits + scoring · Priority 8 · Status: built, waiting on the migration before push
+## E8 — Event-conditional scenario splits + scoring · Priority 8 · Status: done
 
 - **Design approved 2026-11-13, with these decisions:**
   - A missing outcome for a due event **rejects** the write, but `outcome: "unresolved"` plus a required `reason` keeps the event open and due while the write succeeds (unattended runs never lose a snapshot).
