@@ -45,7 +45,7 @@ secrets, and switch on GitHub Actions. Every weekday evening your phone gets
 the reading, plus an alert when something changes. No server, no database,
 no cost. This is the setup test and the brief for Friday 20 November 2026:
 
-<img src="docs/screenshots/phone-brief.jpg" alt="Two ntfy notifications on a phone. You're set up: market stress alerts are working. Market stress, Fri Nov 20: 1 of 6 RED, VIX 35.89 (not yet confirmed); 3 AMBER: high-yield spread 352 bp, S&P 500 drawdown 11.6%, 10-year Treasury 4.92%; stress gate not met (0 of 6 confirmed RED); drawdown risk band not scored because the S&P 500 is already 11.6% below its high; closest to RED: 10-year Treasury 0.08 pts away, S&P 500 drawdown 8.4 pts away." width="360">
+<img src="docs/screenshots/phone-brief.png" alt="A phone lock screen at 9:14 with two ntfy notifications. Market stress, Fri Nov 20: 1 of 6 RED, VIX 35.89 (not yet confirmed); 3 AMBER: high-yield spread 352 bp, S&P 500 drawdown 11.6%, 10-year Treasury 4.92%; stress gate not met (0 of 6 confirmed RED); drawdown risk band not scored because the S&P 500 is already 11.6% below its high; closest to RED: 10-year Treasury 0.08 pts away, S&P 500 drawdown 8.4 pts away. Below it: You're set up, market stress alerts are working." width="360">
 
 Same rules and code as the live site. Optional extras: your own crash-plan
 triggers as a private secret (you get "Wave 2 trigger hit", never the
