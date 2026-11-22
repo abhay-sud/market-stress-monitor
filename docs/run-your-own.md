@@ -16,7 +16,7 @@ takes about ten minutes.
 ```
 Market stress · Fri Nov 20
 1 of 6 RED: VIX 35.89 (not yet confirmed)
-3 AMBER: High-yield spread 352 bp · S&P 500 drawdown 11.6% · 10-year Treasury 4.92%
+3 AMBER: High-yield spread 352 bp (Nov 19) · S&P 500 drawdown 11.6% · 10-year Treasury 4.92%
 Stress gate: not met (0 of 6 confirmed RED; the gate needs 3)
 Drawdown risk band: not scored, because the S&P 500 is already 11.6% below its high.
 Closest to RED: 10-year Treasury 0.08 pts away · S&P 500 drawdown 8.4 pts away

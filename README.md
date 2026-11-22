@@ -22,6 +22,7 @@ the narrative, and never re-derives a number.
 ![Claude](https://img.shields.io/badge/Claude-D97757?style=flat-square&logo=claude&logoColor=white)
 
 **[Live dashboard →](https://marketstress.org/)** · free, no sign-up, updated daily<br>
+**[Get the alerts on your phone →](docs/run-your-own.md)** · fork, add two secrets, done<br>
 [How it works](#how-it-works) · [Evidence](#evidence-over-vibes) · [Rules](reference_docs/rules/crash-check-rules.md) · [Run it yourself](#run-it-yourself) · [Known gaps](BACKLOG.md)
 
 <a href="https://marketstress.org/">
@@ -37,8 +38,36 @@ the narrative, and never re-derives a number.
 > and the data can be delayed, revised or wrong. The code is shared as-is,
 > with no warranty.
 
+## Get the alerts yourself
+
+Fork this repo, add a free FRED key and an [ntfy](https://ntfy.sh/) topic as
+secrets, and switch on GitHub Actions. Every weekday evening your phone gets
+the reading, plus an alert when something changes. No server, no database,
+no cost. This is what it sent on Friday 20 November 2026:
+
+```
+S&P 500 now 11.6% below its high
+Fri Nov 20: The S&P 500 closed at 6910.39, 11.6% below its all-time high of
+7818.93 (2026-10-06): past the 10% line. 0 of 6 confirmed RED; stress gate not met.
+
+Market stress · Fri Nov 20
+1 of 6 RED: VIX 35.89 (not yet confirmed)
+3 AMBER: High-yield spread 352 bp (Nov 19) · S&P 500 drawdown 11.6% · 10-year Treasury 4.92%
+Stress gate: not met (0 of 6 confirmed RED; the gate needs 3)
+Drawdown risk band: not scored, because the S&P 500 is already 11.6% below its high.
+Closest to RED: 10-year Treasury 0.08 pts away · S&P 500 drawdown 8.4 pts away
+Not investment advice · marketstress.org
+```
+
+Same rules and code as the live site. Optional extras: your own crash-plan
+triggers as a private secret (you get "Wave 2 trigger hit", never the
+levels), Telegram/Discord/Slack/email, and a short AI summary from the
+model of your choice, whose numbers are checked against the data before it's
+sent. **[Ten-minute setup →](docs/run-your-own.md)**
+
 ## Contents
 
+- [Get the alerts yourself](#get-the-alerts-yourself)
 - [Why this exists](#why-this-exists)
 - [The dashboard](#the-dashboard)
 - [How it works](#how-it-works)
@@ -116,11 +145,11 @@ flowchart LR
 | Component | What it does |
 |---|---|
 | [`ingestion/`](ingestion/) | Pulls each source into Supabase. A plausibility guard quarantines implausible values before they're written, and a backfill script loads each series' full history. No LLM and no classification logic. |
-| [`rule_engine/`](rule_engine/) | Pure functions: the six-indicator panel, confirmation windows, the stress gate, cross-indicator divergence flags and the drawdown risk band. Writes `crash_checks`, and sends an ntfy.sh push when the confirmed-RED count rises to 2 or more. Vitest suite. |
+| [`rule_engine/`](rule_engine/) | Pure functions: the six-indicator panel, confirmation windows, the stress gate, cross-indicator divergence flags and the drawdown risk band. Writes `crash_checks`. Also holds the "run your own" alerts copy (`src/lite/`), which replays the same per-day logic from public data with no database. Vitest suite. |
 | [`mcp_server/`](mcp_server/) | Local stdio [Model Context Protocol](https://modelcontextprotocol.io/) server. 21 tools: workflow instructions, market state, context indicators, rules lookup, portfolio drift, watchlist, wave evaluation, deployment planning and fire drill, fund-filing watch, and write/persist tools. Runs locally because it's the only component that reads personal data. `node:test` suite. |
 | [`dashboard_site/`](dashboard_site/) | Public static site on Cloudflare Pages, no build step. Reads only public market data with the anon key. A small worker server-renders the latest reading for crawlers and AI tools. |
 | [`full_report_site/`](full_report_site/) | Private page behind Cloudflare Access: wave status, personal triggers, the watchlist with insider activity, crash-type diagnosis and the portfolio review. Rendered server-side, so no credential reaches the browser. |
-| [`config/`](config/) | `monitoring.yaml`: the public panel bands, confirmation days, stress gate and push-alert count, read by both `rule_engine` and `mcp_server`. |
+| [`config/`](config/) | `monitoring.yaml`: the public panel bands, confirmation days and stress gate, read by both `rule_engine` and `mcp_server`. |
 | [`supabase/migrations/`](supabase/migrations/) | Schema and row-level-security history. |
 
 ## What's deterministic and what's judgment
@@ -164,6 +193,17 @@ How changes get made, and what's been thrown out along the way:
   were all up a year later, and never blocked one that lost (two
   pre-registered backtests on 1962–2026 data, reproduced by an independent
   reviewer). Since 2026-11-19 the gate is shown as information, not required.
+- **An alert that never warned in time was replaced.** The original phone
+  alert fired when 2 indicators were confirmed RED. Replayed over 1990–2026,
+  it fired before the S&P was 10% down in none of the four bear markets, and
+  a 10% fall followed it less often than an ordinary day. It was retired for
+  an alert on the deployment triggers themselves
+  ([`config/monitoring.yaml`](config/monitoring.yaml)).
+- **Ideas that sound smart but don't pay are left out.** Tilting holdings by
+  macro regime was tested before it could be built: instrument tilts added
+  +0.14% a year (90% interval −0.76% to +0.96%) and industry tilts −0.49%,
+  so the regime notes stay as context only (rules doc, "Regime → Instrument
+  Fit").
 - **Low-signal features get cut.** A discretionary "Risk Radar" score was
   retired, and later deleted, after its readings swung run to run on
   unchanged data.
@@ -315,13 +355,14 @@ Found a problem with any of this? See [`SECURITY.md`](SECURITY.md).
 | Public site | Static HTML/JS on Cloudflare Pages, plus a small worker for server-rendered metadata |
 | Private site | Cloudflare Pages Function behind Cloudflare Access |
 | AI layer | Model Context Protocol server (stdio), Claude for research and narrative |
-| Alerts | ntfy.sh push notifications when a wave trigger fires (run locally) |
+| Alerts | ntfy.sh push when a wave trigger fires (run locally); the "run your own" copy sends a daily brief and event alerts from GitHub Actions to ntfy, email, Telegram, Discord or Slack |
 | Tests | Vitest (`rule_engine`), `node:test` (`mcp_server`), `tsc --noEmit` everywhere |
 
 ## Run it yourself
 
-> **At your own risk.** This is one person's working setup, not a packaged
-> product. If you only want the signals, use the
+> **At your own risk.** The alerts-only copy below is packaged to run on its
+> own; the full setup after it is one person's working system, not a product.
+> If you only want to look at the signals, use the
 > [live dashboard](https://marketstress.org/).
 
 ### Alerts only: your own copy in ten minutes
@@ -433,9 +474,11 @@ docs/                 run-your-own setup guide, screenshots and demo
   Treasury, EIA, CBOE, CFTC, FINRA, SEC EDGAR, State Street, Polymarket,
   Yahoo Finance, Massive) keeps its own terms, and you're responsible for
   complying with them when you run the code with your own keys.
-- **Status:** a personal project with a single maintainer, shared as-is. It
-  runs daily and is actively used, but there's no support commitment, and
-  responses aren't guaranteed.
+- **Status and support:** a personal project with a single maintainer,
+  shared as-is and maintained as time allows. It runs daily and is actively
+  used. Issues are for bugs and data problems; pull requests are welcome but
+  may not be merged. There's no support commitment, and responses aren't
+  guaranteed.
 
 ## License
 
