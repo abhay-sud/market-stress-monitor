@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "classify": "tsx src/run.ts",
+    "lite": "tsx src/lite/run.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
