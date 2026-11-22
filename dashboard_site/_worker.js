@@ -127,6 +127,7 @@ export default {
       rw = rw
         .on("title", { element(el) { el.setInnerContent(page.title); } })
         .on("#brand-tab", { element(el) { el.setInnerContent(page.brand, { html: true }); } })
+        .on("#horizon", { element(el) { el.setAttribute("data-tab", page.tab); } })
         .on('meta[name="description"]', { element(el) { el.setAttribute("content", description); } })
         .on('link[rel="canonical"]', { element(el) { el.setAttribute("href", canonical); } })
         .on('meta[property="og:url"]', { element(el) { el.setAttribute("content", canonical); } })
@@ -331,7 +332,7 @@ function markdown(data) {
     "",
     "| Indicator | Value | Status | Data date |",
     "|---|---|---|---|",
-    ...f.indicators.map((i) => `| ${i.name} | ${i.value} | ${i.color}${i.pending ? " (pending confirmation)" : ""} | ${i.observed ?? "manual judgment"} |`),
+    ...f.indicators.map((i) => `| ${i.name} | ${i.value} | ${i.color}${i.pending ? " (pending confirmation)" : ""} | ${i.observed ?? "AI judgment over Fed rate data"} |`),
     "",
   ];
   const { status: bandStatus, band } = ddVixReading(row);
