@@ -1,0 +1,20 @@
+-- Fed pivot basis (2026-11-22). Records why fed_pivot_signal has its value:
+-- the rate facts the rule engine derives from FRED's Fed target rate
+-- (DFEDTARU) against the FOMC calendar, and who set the signal.
+--
+-- Shape: { source: 'data' | 'ai' | 'default',
+--          reason: text | null,       -- one line; the AI's or the data rule's
+--          decided_on: 'YYYY-MM-DD' | null,
+--          facts: { as_of, target_upper_pct, latest_meeting, last_change_date,
+--                   last_change_bp, cut_at_latest_decision } | null }
+--
+-- source 'data': the floor rule set CUT because the Fed's most recent
+-- decision was a cut (the AI can't override it). 'ai': the daily Claude run
+-- judged it with the written test in project-instructions.md. 'default':
+-- nobody has judged it yet. Written by rule_engine classify.ts and carried
+-- forward (or replaced) by mcp_server write_snapshot. Public like the rest
+-- of the row: the reason is macro narrative only.
+--
+-- Nullable with no default: older rows stay null. anon's table-level SELECT
+-- on crash_checks covers the new column.
+alter table crash_checks add column fed_pivot_basis jsonb;
