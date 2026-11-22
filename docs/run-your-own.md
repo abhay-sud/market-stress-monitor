@@ -112,7 +112,7 @@ time in winter, 6:30pm in summer).
 | Variable | Values | Default |
 |---|---|---|
 | `BRIEF` | `daily`, `weekly` (Fridays) or `off` (alerts only) | `daily` |
-| `FED_PIVOT` | `NONE`, `PAUSE` or `CUT`: your read of the Fed, the one indicator with no data feed. Update it when the Fed changes course. | not tracked |
+| `FED_PIVOT` | `NONE`, `PAUSE` or `CUT`: your read of the Fed. The run sets CUT by itself right after a Fed rate cut (from the Fed's target rate on FRED); use this for anything else, such as a signalled cut. Update it when the Fed changes course. | `NONE`, except after a cut |
 | `NTFY_SERVER` | Your own ntfy server URL | `https://ntfy.sh` |
 
 To change the bands or the stress gate, edit

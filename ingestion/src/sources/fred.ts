@@ -724,6 +724,21 @@ export async function fetchFredBackfill(): Promise<DataPoint[]> {
   return points;
 }
 
+async function fetchRecentFedTarget(apiKey: string): Promise<DataPoint[]> {
+  const since = new Date(Date.now() - 400 * 86_400_000).toISOString().slice(0, 10);
+  const history = await fetchFredHistory("DFEDTARU", apiKey, since);
+  if (history.length === 0) throw new Error("no observations");
+  return history.map((o) => ({
+    series_id: "DFEDTARU",
+    source: "FRED",
+    source_series_code: "DFEDTARU",
+    observation_date: o.date,
+    value: Number(o.value),
+    unit: "percent",
+    raw_payload: o,
+  }));
+}
+
 export async function fetchFred(): Promise<DataPoint[]> {
   const apiKey = process.env.FRED_API_KEY;
   if (!apiKey) {
@@ -761,6 +776,17 @@ export async function fetchFred(): Promise<DataPoint[]> {
     }
   }
   points.push(...filled, ...deriveBreakevenFill(fredLatest, filled));
+
+  // Fed target rate (upper end), for the Fed pivot facts and floor
+  // (rule_engine/src/fedPivot.ts). The rule engine compares the rate before
+  // and after the latest FOMC meeting, so the trailing ~400 days are written
+  // each run (idempotent upserts) and no separate backfill is needed.
+  // Best-effort: a failure leaves the rule engine carrying the prior signal.
+  try {
+    points.push(...(await fetchRecentFedTarget(apiKey)));
+  } catch (err) {
+    console.warn(`  DFEDTARU: skipped this run — ${err instanceof Error ? err.message : String(err)}`);
+  }
 
   // Context-only and derived, so a failure here degrades to "no new spread
   // rows today" (the tool then reports the last stored value with its date)

@@ -18,6 +18,8 @@ export interface LiteHistory {
   hy_spread_pct: Point[];
   treasury_10y: Point[];
   sahm_rule: Point[];
+  /** Fed target rate, upper end; empty if FRED failed (the data floor is then off). */
+  fed_target: Point[];
   /** Which source each series came from, for the run log. */
   sources: Record<string, string>;
 }
@@ -180,5 +182,15 @@ export async function fetchLiteHistory(fredApiKey: string, fromDate: string): Pr
     sources.treasury_10y = "FRED DGS10";
   }
   sources.sahm_rule = "FRED SAHMREALTIME";
-  return { sp500, vix, hy_spread_pct: hy, treasury_10y: dgs10Filled, sahm_rule: sahm, sources };
+  // Best-effort: without it the Fed pivot falls back to the FED_PIVOT setting.
+  let fedTarget: Point[] = [];
+  try {
+    const since = new Date(Date.parse(fromDate) - 400 * 86_400_000).toISOString().slice(0, 10);
+    fedTarget = await fred("DFEDTARU", since, fredApiKey);
+    sources.fed_target = "FRED DFEDTARU";
+  } catch (err) {
+    console.warn(`fed_target: FRED DFEDTARU failed (${err instanceof Error ? err.message : String(err)}); Fed pivot from FED_PIVOT only`);
+    sources.fed_target = "unavailable";
+  }
+  return { sp500, vix, hy_spread_pct: hy, treasury_10y: dgs10Filled, sahm_rule: sahm, fed_target: fedTarget, sources };
 }

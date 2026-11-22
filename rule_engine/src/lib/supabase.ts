@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import type { ConfirmationEntry, DistanceToRed } from "../rules.js";
 import type { DivergenceFlag } from "../divergence.js";
+import type { FedPivotBasis } from "../fedPivot.js";
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -19,6 +20,21 @@ export interface DataPointRow {
   series_id: string;
   observation_date: string;
   value: number;
+}
+
+/** Rows for a series_id on or after `since` (ascending). Small series only: one page. */
+export async function getSeriesSince(seriesId: string, since: string): Promise<DataPointRow[]> {
+  const { data, error } = await supabase
+    .from("data_points")
+    .select("series_id, observation_date, value")
+    .eq("series_id", seriesId)
+    .gte("observation_date", since)
+    .order("observation_date", { ascending: true })
+    .limit(1000);
+  if (error) {
+    throw new Error(`Failed to read data_points for ${seriesId}: ${error.message}`);
+  }
+  return data ?? [];
 }
 
 /** Most recent row for a series_id, or null if we've never ingested it. */
@@ -42,6 +58,8 @@ export interface LatestSnapshotRow {
   warsh_classification_date: string | null;
   warsh_hard_rules_active: boolean;
   fed_pivot_signal: string | null;
+  // Why the Fed pivot has its value (2026-11-22, fedPivot.ts); null on older rows.
+  fed_pivot_basis: FedPivotBasis | null;
   trigger_status: unknown;
   confirmation_state: Record<string, ConfirmationEntry> | null;
   confirmed_red_count: number | null;
@@ -64,7 +82,7 @@ export async function getLatestCrashCheck(): Promise<LatestSnapshotRow | null> {
   const { data, error } = await supabase
     .from("crash_checks")
     .select(
-      "warsh_classification, warsh_classification_date, warsh_hard_rules_active, fed_pivot_signal, trigger_status, confirmation_state, confirmed_red_count, sp500_trough, sp500_trough_date, recovery_confirmed, recovery_confirmed_date",
+      "warsh_classification, warsh_classification_date, warsh_hard_rules_active, fed_pivot_signal, fed_pivot_basis, trigger_status, confirmation_state, confirmed_red_count, sp500_trough, sp500_trough_date, recovery_confirmed, recovery_confirmed_date",
     )
     .order("run_at", { ascending: false })
     .limit(1)
@@ -92,6 +110,7 @@ export interface CrashCheckInsert {
   sahm_rule_color: "GREEN" | "AMBER" | "RED";
   fed_pivot_signal: "NONE" | "PAUSE" | "CUT";
   fed_pivot_color: "GREEN" | "AMBER" | "RED";
+  fed_pivot_basis: FedPivotBasis;
   red_count: number;
   confirmed_red_count: number;
   confirmation_state: Record<string, ConfirmationEntry>;

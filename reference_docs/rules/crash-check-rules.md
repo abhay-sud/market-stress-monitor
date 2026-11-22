@@ -212,6 +212,32 @@ dates), not a single day's snapshot.
 | 5 | Sahm Rule reading | <0.3 | 0.3–0.5 | >0.5 |
 | 6 | Fed pivot signal | None | Pause language | Cut signal |
 
+**How the Fed pivot is set (2026-11-22).** It asks one question: has the Fed
+turned toward easing? A cut counts as a stress sign because the Fed cuts when
+the economy or markets are cracking. The daily run judges it, and a data floor
+backs it:
+
+- **Facts:** the rule engine reads the Fed's target rate (FRED `DFEDTARU`,
+  upper end) against the FOMC calendar: the latest scheduled decision, the
+  most recent rate change and whether it was a cut
+  (`rule_engine/src/fedPivot.ts`, stored in `crash_checks.fed_pivot_basis`).
+- **Floor:** if the Fed's most recent decision was a cut (taking effect after
+  the latest scheduled meeting; an intermeeting cut counts), the signal is
+  CUT and `write_snapshot` refuses anything else.
+- **Judgment:** otherwise the daily run decides, with a one-line public
+  reason: **CUT** if the Fed cut at either of its last 2 meetings and that
+  easing still stands, or clearly signals a cut at either of the next 2;
+  **PAUSE** if rates are on hold and the Fed leans toward easing; **NONE**
+  for anything else. A hawkish hold, hike dissents or a hike are NONE: hike
+  risk is read through the Warsh classification, the 10-year yield and the
+  Fed-event note, not this indicator. A cut at the meeting before the latest
+  one doesn't force CUT, because a hawkish turn since then means the easing
+  no longer stands.
+- The value and who set it (`data`, `ai` or `default`) carry forward
+  until the next judgment. Before the calendar's first date there is no
+  floor. The "run your own" copy has no AI step: it applies the floor and
+  otherwise uses the user's `FED_PIVOT` setting.
+
 **The stress gate is met when 3 or more of the 6 indicators are
 simultaneously RED, each independently confirmed** per the Signal Tiering
 rule (true across 2+ distinct ingestion dates). A RED reading that hasn't
@@ -473,7 +499,10 @@ with no corresponding code):
    "CUT"`) directly rather than a new field — the "within 2 meetings"
    recency qualifier is **not independently tracked**, same honesty-first
    treatment as every other manual/LLM-judged field in this document (see
-   Warsh classification below).
+   Warsh classification below). Since 2026-11-22 the signal is set as
+   described under the 6-Indicator Panel ("How the Fed pivot is set"): a cut
+   at the Fed's most recent decision forces CUT, and the daily run judges the
+   rest with a stated reason.
 3. **VIX has sustained below 25 for 3+ consecutive weeks.** Implemented via
    the same confirmation-streak mechanism as the 6-indicator panel
    (`computeConfirmation`), reusing distinct-observation-date persistence

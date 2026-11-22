@@ -91,6 +91,20 @@ describe("replay", () => {
     expect(days.every((d) => d.fed_pivot_color === "RED")).toBe(true);
     expect(days[0].confirmed_red_count).toBe(1);
   });
+
+  it("uses CUT on days when the Fed's most recent decision was a cut (the data floor)", () => {
+    // Days run from 2026-01-01; the Jan 28 meeting cut 25 bp, effective Jan 29.
+    // The next meeting (Mar 18) holds, so the floor ends after it.
+    const n = 90;
+    const fed_target = Array.from({ length: n }, (_, i) => ({ date: day(i), value: day(i) >= "2026-01-29" ? 3.75 : 4.0 }));
+    const days = replay({ ...calm(n), sp500: flat(n, 100), fed_target }, { from: day(0), fedPivot: "NONE" });
+    const on = (date: string) => days.find((d) => d.date === date)!;
+    expect(on("2026-01-28").inputs.fed_pivot_signal).toBe("NONE");
+    expect(on("2026-01-29").inputs.fed_pivot_signal).toBe("CUT");
+    expect(on("2026-03-18").inputs.fed_pivot_signal).toBe("CUT");
+    expect(on("2026-03-19").inputs.fed_pivot_signal).toBe("NONE");
+    expect(on("2026-01-29").fed_facts).toMatchObject({ last_change_bp: -25, cut_at_latest_decision: true });
+  });
 });
 
 describe("parseYahooCloses", () => {

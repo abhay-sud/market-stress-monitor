@@ -7,6 +7,7 @@ import type { OpenPrediction, ScoringEntry } from "./conditionalScenarios.js";
 import { evaluateCurrentWave, type WaveInputRow, type WaveStatus } from "./waveEvaluation.js";
 import { loadPolicy } from "./waveDeployment.js";
 import { findPrivateTerms } from "./privateTerms.js";
+import { resolveFedPivotBasis, type FedPivotBasis } from "./fedPivotInput.js";
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -74,6 +75,9 @@ export interface CrashCheckRow {
   sahm_rule_color: string | null;
   fed_pivot_signal: string | null;
   fed_pivot_color: string | null;
+  // Why the Fed pivot has its value (2026-11-22): rate facts from the rule
+  // engine (rule_engine/src/fedPivot.ts) and who set it. Null on older rows.
+  fed_pivot_basis: FedPivotBasis | null;
   red_count: number;
   confirmed_red_count: number | null;
   confirmation_state: Record<string, ConfirmationEntry> | null;
@@ -424,6 +428,8 @@ export async function writeSnapshot(qualitative: {
   warsh_classification_date?: string | null;
   warsh_hard_rules_active?: boolean;
   fed_pivot_signal?: "NONE" | "PAUSE" | "CUT";
+  // One line, required with fed_pivot_signal: the AI's reason, stored publicly.
+  fed_pivot_reason?: string;
   trigger_status?: unknown;
   conditional_scenarios?: OpenPrediction[];
   conditional_scoring?: ScoringEntry[];
@@ -460,6 +466,15 @@ export async function writeSnapshot(qualitative: {
   // mechanically derivable from data already on disk.
   const rateResetTrigger = computeRateResetTriggerStatus(readPortfolio());
 
+  // Fed pivot (2026-11-22): the AI's judgment, with a stated reason, under
+  // the rule engine's data floor. When the Fed's most recent decision was a
+  // cut, only CUT is accepted: the AI can't deny a cut that happened.
+  const fedPivotBasis = resolveFedPivotBasis(
+    latest.fed_pivot_basis ?? null,
+    qualitative.fed_pivot_signal,
+    qualitative.fed_pivot_reason,
+    new Date().toISOString().slice(0, 10),
+  );
   const fedPivotSignal = qualitative.fed_pivot_signal ?? (latest.fed_pivot_signal as "NONE" | "PAUSE" | "CUT" | null) ?? "NONE";
   const fedPivotColor = fedPivotSignal === "NONE" ? "GREEN" : fedPivotSignal === "PAUSE" ? "AMBER" : "RED";
 
@@ -521,6 +536,7 @@ export async function writeSnapshot(qualitative: {
     JSON.stringify(qualitative.conditional_scenarios ?? []),
     ...qualitative.scenario_tilt_reasons,
     qualitative.macro_narrative ?? "",
+    qualitative.fed_pivot_reason ?? "",
   ].join(" ");
   const privateHits = findPrivateTerms(publicText, loadPolicy().private_terms);
   if (privateHits.length > 0) {
@@ -571,6 +587,7 @@ export async function writeSnapshot(qualitative: {
     sahm_rule_color: latest.sahm_rule_color,
     fed_pivot_signal: fedPivotSignal,
     fed_pivot_color: fedPivotColor,
+    fed_pivot_basis: fedPivotBasis,
     red_count: redCount,
     confirmed_red_count: confirmedRedCount,
     // confirmation_state itself is still carried forward verbatim, not

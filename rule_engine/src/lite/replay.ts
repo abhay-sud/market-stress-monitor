@@ -11,6 +11,7 @@
 import { stepPanel, type FedPivotSignal, type PanelInputs, type PanelState } from "../panelStep.js";
 import type { Point } from "./fetch.js";
 import { sp500Derived } from "../sp500History.js";
+import { fedRateFacts, floorForcesCut, type FedRateFacts } from "../fedPivot.js";
 
 export { sp500Derived };
 
@@ -20,12 +21,18 @@ export interface ReplayInput {
   hy_spread_pct: Point[];
   treasury_10y: Point[];
   sahm_rule: Point[];
+  /** Fed target rate, upper end (FRED DFEDTARU). Optional: without it there is no data floor. */
+  fed_target?: Point[];
 }
 
 export interface ReplayOptions {
   /** First S&P date to step through (earlier S&P history still sets the all-time high and the 252-day low). */
   from: string;
-  /** Tier 1 has no Fed pivot feed: a fixed value from the FED_PIVOT setting, NONE by default. */
+  /**
+   * The Fed pivot outside the data floor: the FED_PIVOT setting, NONE by
+   * default. On a day when the Fed's most recent decision was a cut
+   * (fedPivot.ts), the day uses CUT instead, as the live engine does.
+   */
   fedPivot: FedPivotSignal;
   /**
    * Date on which any open drawdown episode is forgotten. Defaults to the
@@ -42,6 +49,8 @@ export interface DayState extends PanelState {
   inputs: PanelInputs;
   /** Trading days since the S&P closed at a 252-trading-day low (0 = today); see sp500History.ts. */
   sp500_days_since_252d_low: number;
+  /** Fed rate facts for this day when the target-rate series was available. */
+  fed_facts: FedRateFacts | null;
 }
 
 const byDate = (a: Point, b: Point) => a.date.localeCompare(b.date);
@@ -68,6 +77,7 @@ export function replay(input: ReplayInput, opts: ReplayOptions): DayState[] {
     dgs10: clean(input.treasury_10y),
     sahm: clean(input.sahm_rule),
   };
+  const fedTarget = clean(input.fed_target ?? []);
   if (sp.length === 0) return [];
   const derived = sp500Derived(sp);
   const resetOn = opts.resetEpisodeOn ?? derived[derived.length - 1].ath.date;
@@ -84,6 +94,7 @@ export function replay(input: ReplayInput, opts: ReplayOptions): DayState[] {
     const dgs10 = asOf(others.dgs10, cursors.dgs10, date);
     const sahm = asOf(others.sahm, cursors.sahm, date);
     if (!vix || !hy || !dgs10 || !sahm) continue; // a series hasn't started yet
+    const fedFacts = fedTarget.length ? fedRateFacts(fedTarget, date) : null;
 
     const inputs: PanelInputs = {
       vix: reading(vix),
@@ -92,13 +103,13 @@ export function replay(input: ReplayInput, opts: ReplayOptions): DayState[] {
       sp500_ath: reading(derived[i].ath),
       treasury_10y: reading(dgs10),
       sahm_rule: reading(sahm),
-      fed_pivot_signal: opts.fedPivot,
+      fed_pivot_signal: floorForcesCut(fedFacts) ? "CUT" : opts.fedPivot,
     };
     const carry = prior && date === resetOn
       ? { ...prior, sp500_trough: null, sp500_trough_date: null, recovery_confirmed: false, recovery_confirmed_date: null }
       : prior;
     const state = stepPanel(inputs, carry);
-    days.push({ ...state, date, inputs, sp500_days_since_252d_low: derived[i].daysSinceLow });
+    days.push({ ...state, date, inputs, sp500_days_since_252d_low: derived[i].daysSinceLow, fed_facts: fedFacts });
     prior = state;
   }
   return days;

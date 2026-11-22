@@ -197,7 +197,9 @@ export function formatBrief(d: DayState, opts: { fedPivotSet: boolean }): { titl
     (i) => `${i.name} ${i.fmt(d)} (${isConfirmedRed(d, i.key) ? "confirmed" : "not yet confirmed"})`,
   );
   const ambers = INDICATORS.filter((i) => d[COLOR_KEY[i.key]] === "AMBER").map((i) => `${i.name} ${i.fmt(d)}`);
-  if (d.fed_pivot_color === "RED") reds.push(`Fed pivot ${d.inputs.fed_pivot_signal}`);
+  const floor = d.fed_facts?.cut_at_latest_decision === true;
+  if (d.fed_pivot_color === "RED")
+    reds.push(`Fed pivot ${d.inputs.fed_pivot_signal}${floor ? ` (the Fed cut ${-(d.fed_facts!.last_change_bp ?? 0)} bp, effective ${shortDate(d.fed_facts!.last_change_date!)})` : ""}`);
   if (d.fed_pivot_color === "AMBER") ambers.push(`Fed pivot ${d.inputs.fed_pivot_signal}`);
 
   // Closest to RED across different units: rank by the distance left as a
@@ -220,7 +222,7 @@ export function formatBrief(d: DayState, opts: { fedPivotSet: boolean }): { titl
     `Stress gate: ${d.wave_authorized ? "met" : "not met"} (${d.confirmed_red_count} of 6 confirmed RED; the gate needs 3)`,
     riskBandSentence(d),
     ...(closest.length ? [`Closest to RED: ${closest.join(" · ")}`] : []),
-    ...(opts.fedPivotSet ? [] : ["Fed pivot: not tracked (set the FED_PIVOT variable to NONE, PAUSE or CUT)"]),
+    ...(opts.fedPivotSet || floor ? [] : ["Fed pivot: CUT only right after a Fed rate cut (for your own read, set the FED_PIVOT variable to NONE, PAUSE or CUT)"]),
     ...(stale.length ? [`Stale data: ${stale.join(", ")}`] : []),
     "Not investment advice · marketstress.org",
   ];

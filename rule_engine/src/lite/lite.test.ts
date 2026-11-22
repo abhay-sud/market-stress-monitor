@@ -161,7 +161,7 @@ describe("formatBrief", () => {
     expect(body).toContain("1 of 6 RED: VIX 36.00 (confirmed)");
     expect(body).toContain("Stress gate: not met (1 of 6 confirmed RED; the gate needs 3)");
     expect(body).toContain("Drawdown risk: Low."); // 0% drawdown + 36/5 = 7.2, under the 8.5 cutoff
-    expect(body).toContain("Fed pivot: not tracked");
+    expect(body).toContain("Fed pivot: CUT only right after a Fed rate cut");
     expect(body).toContain("Not investment advice");
   });
 

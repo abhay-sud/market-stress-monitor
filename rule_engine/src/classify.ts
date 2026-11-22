@@ -1,4 +1,5 @@
-import { getLatestDataPoint, getLatestCrashCheck, insertCrashCheck } from "./lib/supabase.js";
+import { getLatestDataPoint, getLatestCrashCheck, getSeriesSince, insertCrashCheck } from "./lib/supabase.js";
+import { decideFedPivot, fedRateFacts, FED_TARGET_SERIES, type FedPivotSignal, type FedRateFacts } from "./fedPivot.js";
 import { computeDivergences } from "./divergence.js";
 import { gatherHazardFeatures, computeHazardProbability, type HazardResult } from "./hazardModel.js";
 import { updateHazardScorecard } from "./hazardScorecardStore.js";
@@ -26,15 +27,29 @@ export async function classify(): Promise<void> {
     requireLatest("SAHMREALTIME"),
   ]);
 
-  // Fed pivot signal has no clean numeric source (it's a read on Fed
-  // communications) — carried forward from the last known value rather than
-  // guessed. Same treatment as Warsh classification: a flagged manual/LLM
-  // judgment field, not something this deterministic script decides.
+  // Fed pivot signal (fedPivot.ts): judged by the daily Claude run and
+  // carried forward here, except that a cut at the Fed's most recent
+  // decision forces CUT (the data floor). Facts come from the Fed target
+  // rate; if they can't be read, the prior value carries unchanged.
   const prior = await getLatestCrashCheck();
-  const fedPivotSignal = (prior?.fed_pivot_signal as "NONE" | "PAUSE" | "CUT" | null) ?? "NONE";
   if (!prior) {
-    console.warn('No prior crash_checks row found — defaulting fed_pivot_signal to "NONE". Confirm/override manually on the next chat-run.');
+    console.warn('No prior crash_checks row found — defaulting fed_pivot_signal to "NONE" until the daily run judges it.');
   }
+  const today = new Date().toISOString().slice(0, 10);
+  let fedFacts: FedRateFacts | null = null;
+  try {
+    const since = new Date(Date.now() - 400 * 86_400_000).toISOString().slice(0, 10);
+    const rows = await getSeriesSince(FED_TARGET_SERIES, since);
+    fedFacts = fedRateFacts(rows.map((r) => ({ date: r.observation_date, value: Number(r.value) })), today);
+  } catch (err) {
+    console.error("fedPivot: couldn't read the Fed target rate; carrying the prior signal:", err);
+  }
+  const fedPivot = decideFedPivot(
+    prior ? { signal: prior.fed_pivot_signal as FedPivotSignal | null, basis: prior.fed_pivot_basis ?? null } : null,
+    fedFacts,
+    today,
+  );
+  const fedPivotSignal = fedPivot.signal;
 
   // Bands, confirmation streaks, stress gate, distance-to-RED, the drawdown
   // + VIX risk band and the Stage 4 trough/recovery state: one pure step
@@ -138,6 +153,7 @@ export async function classify(): Promise<void> {
     sahm_rule_color: sahmRuleColor,
     fed_pivot_signal: fedPivotSignal,
     fed_pivot_color: fedPivotColor,
+    fed_pivot_basis: fedPivot.basis,
     red_count: redCount,
     confirmed_red_count: confirmedRedCount,
     confirmation_state: confirmationState,
@@ -163,13 +179,13 @@ export async function classify(): Promise<void> {
     raw_source_data: {
       vix, hySpread, sp500, sp500Ath, treasury10y, sahmRule,
       hazard_model_raw_probability: hazard?.raw_probability ?? null,
-      note: "fed_pivot_signal and warsh_* fields carried forward from prior row — not derived here",
+      note: "warsh_* fields carried forward from prior row; fed_pivot_signal carried forward unless the data floor forces CUT (see fed_pivot_basis)",
     },
   });
 
   console.log(
     `Classified: ${redCount}/6 RED (${confirmedRedCount} confirmed) (VIX=${vixColor}, HY=${hySpreadColor}, ` +
-      `Drawdown=${spDrawdownColor}, 10y=${treasury10yColor}, Sahm=${sahmRuleColor}, FedPivot=${fedPivotColor}). ` +
+      `Drawdown=${spDrawdownColor}, 10y=${treasury10yColor}, Sahm=${sahmRuleColor}, FedPivot=${fedPivotSignal} (${fedPivot.basis.source})). ` +
       `Stress gate met: ${waveAuthorized}. ` +
       `Drawdown episode: ${inEpisode ? `active (trough ${sp500Trough} on ${sp500TroughDate})` : "none"}. ` +
       `Recovery confirmed: ${recoveryConfirmed}. ` +

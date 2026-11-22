@@ -208,7 +208,16 @@ server.registerTool(
         treasury_10y_pct: withConfirmation("treasury_10y", latest.treasury_10y_pct, latest.treasury_10y_color),
         sahm_rule: withConfirmation("sahm_rule", latest.sahm_rule_value, latest.sahm_rule_color),
         // No confirmation entry — manually/LLM-judged, no numeric series behind it (see tool description).
-        fed_pivot_signal: { value: latest.fed_pivot_signal, color: latest.fed_pivot_color },
+        // Plus its basis: the rule engine's rate facts (floor: a cut at the
+        // most recent decision forces CUT) and who set it, with the reason.
+        fed_pivot_signal: {
+          value: latest.fed_pivot_signal,
+          color: latest.fed_pivot_color,
+          source: latest.fed_pivot_basis?.source ?? "default",
+          reason: latest.fed_pivot_basis?.reason ?? null,
+          decided_on: latest.fed_pivot_basis?.decided_on ?? null,
+          rate_facts: latest.fed_pivot_basis?.facts ?? null,
+        },
       },
       red_count: latest.red_count,
       confirmed_red_count: latest.confirmed_red_count,
@@ -496,6 +505,11 @@ server.registerTool(
       warsh_classification_date: z.string().optional(),
       warsh_hard_rules_active: z.boolean().optional(),
       fed_pivot_signal: z.enum(["NONE", "PAUSE", "CUT"]).optional(),
+      fed_pivot_reason: z
+        .string()
+        .max(300)
+        .optional()
+        .describe("Required with fed_pivot_signal: one line naming the decision, statement or minutes it rests on. Public."),
       trigger_status: z
         .array(
           z.object({

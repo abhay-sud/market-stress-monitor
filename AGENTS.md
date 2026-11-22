@@ -81,6 +81,10 @@ install/build steps.
      your own" copy evaluates a user's own triggers with copies of
      `waveEvaluation.ts` and `waveAlert.ts` in `rule_engine/src/lite/plan.ts`;
      change them together.
+   - The Fed pivot's data floor (`rule_engine/src/fedPivot.ts`) keeps a copy
+     of the FOMC dates in `mcp_server/src/lib/economicCalendar.ts`; extend
+     both together (a test checks they match). `write_snapshot` enforces the
+     floor via `mcp_server/src/lib/fedPivotInput.ts`.
 
    The prose rationale stays in `reference_docs/rules/crash-check-rules.md`.
    After any change, run `npm run typecheck` and `npm test` in both
