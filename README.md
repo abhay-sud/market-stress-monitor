@@ -439,5 +439,7 @@ docs/                 run-your-own setup guide, screenshots and demo
 
 ## License
 
-No open-source license has been chosen yet, so all rights are reserved for
-now.
+The code is released under the [MIT License](LICENSE). The license covers this
+repository's code only: market data from FRED, ICE, Treasury, Yahoo Finance
+and the other sources (including values in test fixtures) keeps its owners'
+terms. Nothing here is investment advice.

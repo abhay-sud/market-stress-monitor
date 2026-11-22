@@ -2,6 +2,7 @@
   "name": "crash-check-ingestion",
   "version": "1.0.0",
   "private": true,
+  "license": "MIT",
   "description": "Daily ingestion for the Macro Market Stress Monitor: pulls FRED, Treasury, EIA, CBOE, CFTC, FINRA, SEC EDGAR and other public market data into Supabase, with a plausibility guard. No LLM, no classification.",
   "type": "module",
   "scripts": {
