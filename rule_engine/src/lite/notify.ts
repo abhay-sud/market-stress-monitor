@@ -26,9 +26,6 @@ async function post(name: string, url: string, init: RequestInit): Promise<void>
   if (!res.ok) throw new Error(`${name}: HTTP ${res.status}`);
 }
 
-// ntfy puts the title in an HTTP header, which must be Latin-1.
-const headerSafe = (s: string) => s.replace(/[^\x20-\x7e]/g, (c) => ({ "·": "-", "→": "->", "—": "-", "–": "-" })[c] ?? "");
-
 /** Channels configured in `env`, in a fixed order. */
 export function channelsFromEnv(env: Env): Channel[] {
   const out: Channel[] = [];
@@ -40,15 +37,19 @@ export function channelsFromEnv(env: Env): Channel[] {
     out.push({
       name: email ? "ntfy (+email)" : "ntfy",
       send: (m) =>
-        post("ntfy", `${server}/${encodeURIComponent(v("NTFY_TOPIC"))}`, {
+        // JSON publishing (POST to the server root) keeps the title UTF-8;
+        // the header form would need it squeezed into ASCII.
+        post("ntfy", `${server}/`, {
           method: "POST",
-          headers: {
-            Title: headerSafe(m.title),
-            Priority: m.priority === "high" ? "high" : "default",
-            Tags: m.priority === "high" ? "rotating_light" : "chart_with_downwards_trend",
-            ...(email ? { Email: email } : {}),
-          },
-          body: m.body,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            topic: v("NTFY_TOPIC"),
+            title: m.title,
+            message: m.body,
+            priority: m.priority === "high" ? 4 : 3,
+            tags: [m.priority === "high" ? "rotating_light" : "chart_with_downwards_trend"],
+            ...(email ? { email } : {}),
+          }),
         }),
     });
   }

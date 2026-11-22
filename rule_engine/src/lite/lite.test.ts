@@ -242,7 +242,7 @@ describe("notifications", () => {
     expect(channelsFromEnv({ NTFY_TOPIC: "t", ALERT_EMAIL: "a@example.com", DISCORD_WEBHOOK_URL: "https://x", TELEGRAM_BOT_TOKEN: "k" }).map((c) => c.name)).toEqual(["ntfy (+email)", "Discord"]);
   });
 
-  it("sends a header-safe ntfy title, and errors never contain the URL or token", async () => {
+  it("sends ntfy as JSON with the title intact, and errors never contain the URL or token", async () => {
     const calls: { url: string; init: RequestInit }[] = [];
     vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
       calls.push({ url, init });
@@ -250,7 +250,8 @@ describe("notifications", () => {
     });
     const ch = channelsFromEnv({ NTFY_TOPIC: "my-topic", TELEGRAM_BOT_TOKEN: "SECRET-TOKEN", TELEGRAM_CHAT_ID: "42" });
     const failures = await sendAll(ch, { title: "Drawdown risk: Low → Elevated · Fri", body: "b", priority: "high" });
-    expect((calls[0].init.headers as Record<string, string>).Title).toBe("Drawdown risk: Low -> Elevated - Fri");
+    expect(calls[0].url).toBe("https://ntfy.sh/");
+    expect(JSON.parse(String(calls[0].init.body))).toEqual({ topic: "my-topic", title: "Drawdown risk: Low → Elevated · Fri", message: "b", priority: 4, tags: ["rotating_light"] });
     expect(failures).toEqual(["Telegram: Telegram: HTTP 401"]);
     expect(failures.join(" ")).not.toMatch(/SECRET-TOKEN|api\.telegram/);
   });

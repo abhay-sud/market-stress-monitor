@@ -43,21 +43,9 @@ the narrative, and never re-derives a number.
 Fork this repo, add a free FRED key and an [ntfy](https://ntfy.sh/) topic as
 secrets, and switch on GitHub Actions. Every weekday evening your phone gets
 the reading, plus an alert when something changes. No server, no database,
-no cost. This is what it sent on Friday 20 November 2026:
+no cost. This is the setup test and the brief for Friday 20 November 2026:
 
-```
-S&P 500 now 11.6% below its high
-Fri Nov 20: The S&P 500 closed at 6910.39, 11.6% below its all-time high of
-7818.93 (2026-10-06): past the 10% line. 0 of 6 confirmed RED; stress gate not met.
-
-Market stress · Fri Nov 20
-1 of 6 RED: VIX 35.89 (not yet confirmed)
-3 AMBER: High-yield spread 352 bp (Nov 19) · S&P 500 drawdown 11.6% · 10-year Treasury 4.92%
-Stress gate: not met (0 of 6 confirmed RED; the gate needs 3)
-Drawdown risk band: not scored, because the S&P 500 is already 11.6% below its high.
-Closest to RED: 10-year Treasury 0.08 pts away · S&P 500 drawdown 8.4 pts away
-Not investment advice · marketstress.org
-```
+<img src="docs/screenshots/phone-brief.jpg" alt="Two ntfy notifications on a phone. You're set up: market stress alerts are working. Market stress, Fri Nov 20: 1 of 6 RED, VIX 35.89 (not yet confirmed); 3 AMBER: high-yield spread 352 bp, S&P 500 drawdown 11.6%, 10-year Treasury 4.92%; stress gate not met (0 of 6 confirmed RED); drawdown risk band not scored because the S&P 500 is already 11.6% below its high; closest to RED: 10-year Treasury 0.08 pts away, S&P 500 drawdown 8.4 pts away." width="360">
 
 Same rules and code as the live site. Optional extras: your own crash-plan
 triggers as a private secret (you get "Wave 2 trigger hit", never the
