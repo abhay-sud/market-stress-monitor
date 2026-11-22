@@ -43,9 +43,14 @@ the narrative, and never re-derives a number.
 Fork this repo, add a free FRED key and an [ntfy](https://ntfy.sh/) topic as
 secrets, and switch on GitHub Actions. Every weekday evening your phone gets
 the reading, plus an alert when something changes. No server, no database,
-no cost. This is the setup test and the brief for Friday 20 November 2026:
+no cost. Here is the reading for Friday 20 November 2026, on the lock screen
+and opened in the app:
 
-<img src="docs/screenshots/phone-brief.png" alt="A phone lock screen at 9:14 with two ntfy notifications. Market stress, Fri Nov 20: 1 of 6 RED, VIX 35.89 (not yet confirmed); 3 AMBER: high-yield spread 352 bp, S&P 500 drawdown 11.6%, 10-year Treasury 4.92%; stress gate not met (0 of 6 confirmed RED); drawdown risk band not scored because the S&P 500 is already 11.6% below its high; closest to RED: 10-year Treasury 0.08 pts away, S&P 500 drawdown 8.4 pts away. Below it: You're set up, market stress alerts are working." width="360">
+<p>
+  <img src="docs/screenshots/phone-lock.png" alt="Phone lock screen at 5:31 on Friday, November 20 with two ntfy notifications: the daily brief, Market stress · Fri Nov 20, 1 of 6 RED: VIX 35.89 (not yet confirmed), and an alert, S&P 500 now 11.6% below its high." width="250">
+  &nbsp;
+  <img src="docs/screenshots/phone-app.png" alt="The same messages opened in the ntfy app. Market stress · Fri Nov 20: 1 of 6 RED: VIX 35.89 (not yet confirmed); 3 AMBER: high-yield spread 352 bp, S&P 500 drawdown 11.6%, 10-year Treasury 4.92%; stress gate not met (0 of 6 confirmed RED; the gate needs 3); drawdown risk band not scored because the S&P 500 is already 11.6% below its high; closest to RED: 10-year Treasury 0.08 pts away, S&P 500 drawdown 8.4 pts away. Alert: S&P 500 now 11.6% below its high: closed at 6910.39 on Nov 20, 11.6% below its all-time high of 7818.93 (Oct 6), past the 10% line." width="250">
+</p>
 
 Same rules and code as the live site. Optional extras: your own crash-plan
 triggers as a private secret (you get "Wave 2 trigger hit", never the
