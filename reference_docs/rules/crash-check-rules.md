@@ -1818,8 +1818,8 @@ dashboard (`dashboard_site`) and the private Full Report page
 (`full_report_site`). The chat run used to hand-build an HTML artifact from
 `dashboard-template.html`, but once project knowledge grew past what Claude
 Desktop loads in full, the template came back as search fragments and runs
-started rebuilding it from memory; the template now lives in
-`reference_docs/archive/` for history only. Keep the status-color semantics
+started rebuilding it from memory; the template has been
+retired. Keep the status-color semantics
 fixed on both pages: green = `--good`, amber = `--warning`, red = `--critical`
 — never repurpose them for anything that isn't a GREEN/AMBER/RED-style status.
 If a value isn't available this run (e.g. no delta because it's the first

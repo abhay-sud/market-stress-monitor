@@ -3,8 +3,8 @@ import { fetchYahooDailyCloses } from "./yahoo.js";
 import { fetchTreasuryCurve, CURVE_COLUMNS, type CurveRow, type TreasuryCurve } from "./treasury.js";
 
 // FRED API is stable and well documented: https://fred.stlouisfed.org/docs/api/fred/
-// Series IDs below match the exact list in reference_docs/archive/crash-check-system-build-spec.md
-// (Stage 2 bullet) plus VIXCLS, which is the natural free source for the VIX
+// Series IDs below match the original build spec's Stage 2 list (since retired)
+// plus VIXCLS, which is the natural free source for the VIX
 // reading used in the indicator panel (indicator #1).
 const FRED_SERIES: { id: string; unit: string }[] = [
   // VIXCLS moved to sources/yahoo.ts 2026-09-28 — FRED's own VIXCLS was
@@ -76,7 +76,8 @@ const FRED_SERIES: { id: string; unit: string }[] = [
   // the CAD->USD rate used for value_usd is 1/DEXCAUS, computed at read time.
   { id: "DEXCAUS", unit: "cad_per_usd" },
 
-  // 2026-08-15 additions — Section 5 of reference_docs/archive/investment-model-review.md
+  // 2026-08-15 additions — Section 5 of an external model review (see
+  // reference_docs/architecture-summary-for-external-review.md)
   // flagged missing liquidity/credit-structure/global-transmission/valuation
   // indicators. These 6 are the ones that actually have real free FRED
   // history (verified against FRED's own series metadata, not guessed);
@@ -620,7 +621,7 @@ async function fetchSp500LevelAndAth(apiKey: string): Promise<DataPoint[]> {
 // rolling 5-years-back window, which covered the 2022 rate-hike cycle for
 // the dashboard's trend charts but silently excluded 2008 and 2020 — the
 // two most relevant crisis episodes for any future calibration/backtesting
-// work (see reference_docs/archive/investment-model-review.md). A fixed early
+// work (see reference_docs/architecture-summary-for-external-review.md). A fixed early
 // anchor date costs nothing extra: FRED simply returns no observations
 // before a series' actual inception, so each series naturally comes back
 // with its own full available history (VIXCLS from 1990, CPIAUCSL/UNRATE

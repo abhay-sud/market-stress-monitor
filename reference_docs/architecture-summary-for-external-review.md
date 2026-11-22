@@ -484,7 +484,7 @@ rather than implementation maturity." Its findings, and what's happened since:
 
 # Prior investment-model review: findings and current status
 
-A separate CIO/quant-perspective review (`archive/investment-model-review.md`, since folded into
+A separate CIO/quant-perspective review (an earlier review document, since folded into
 this document) disagreed with the system as a capital-allocation model — "a useful
 dashboard of stress indicators, but not a calibrated crash-probability model or a robust
 deployment policy." Status of its 8 sections, condensed (see the earlier fixes above for
