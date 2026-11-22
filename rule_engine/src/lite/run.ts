@@ -6,6 +6,8 @@
 // Settings (environment; in GitHub Actions, repository secrets and variables):
 //   FRED_API_KEY (required), one notification channel (see notify.ts),
 //   BRIEF=daily|weekly|off, FED_PIVOT=NONE|PAUSE|CUT, MY_PLAN (wave triggers, YAML),
+//   optional AI paragraph: ANTHROPIC_API_KEY, GEMINI_API_KEY or OPENAI_API_KEY
+//   (+ OPENAI_BASE_URL), AI_MODEL (see ai.ts),
 //   LITE_STATE_FILE (default .lite-state/state.json; the workflow caches it).
 // Spec: reference_docs/BUILD_SPEC_run_your_own.md.
 
@@ -13,7 +15,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { fetchLiteHistory } from "./fetch.js";
 import { replay, type DayState } from "./replay.js";
-import { formatBrief } from "./events.js";
+import { detectEvents, formatBrief } from "./events.js";
+import { aiParagraph, aiProviderFromEnv, withAiParagraph, type AiProvider } from "./ai.js";
 import { parsePlan } from "./plan.js";
 import { channelsFromEnv, sendAll, type Message } from "./notify.js";
 import { briefMode, decideRun, EMPTY_STATE, type LiteState } from "./decide.js";
@@ -74,9 +77,29 @@ async function main() {
     console.log(summarize(latest));
     console.log(`plan: ${plan ? "set" : "not set"}; brief: ${brief}; channels: ${channels.map((c) => c.name).join(", ") || "none"}`);
 
+    // Optional AI paragraph for the brief. A bad AI setting never stops the run.
+    let ai: AiProvider | null = null;
+    try {
+      ai = aiProviderFromEnv(process.env);
+    } catch (err) {
+      console.warn(`ai: off (${err instanceof Error ? err.message : String(err)})`);
+    }
+    console.log(`ai: ${ai ? `${ai.name} ${ai.model}` : "off"}`);
+    const todaysEvents = detectEvents(days).filter((e) => e.date === latest.date).map((e) => e.title);
+    const addAi = async <T extends { title: string; body: string }>(m: T): Promise<T> => {
+      if (!ai || !m.title.startsWith("Market stress ·")) return m;
+      const r = await aiParagraph(ai, latest, todaysEvents);
+      if ("dropped" in r) {
+        console.warn(`ai: paragraph dropped, brief sent without it (${r.dropped})`);
+        return m;
+      }
+      console.log("ai: paragraph added");
+      return { ...m, body: withAiParagraph(m.body, r.text) };
+    };
+
     if (test) {
       await send({ title: "You're set up", body: "Market stress alerts are working. This is a test; your daily brief and alerts will follow on schedule.", priority: "default" });
-      await send({ ...formatBrief(latest, { fedPivotSet: fed.set }), priority: "default" });
+      await send(await addAi({ ...formatBrief(latest, { fedPivotSet: fed.set }), priority: "default" as const }));
       console.log("test messages sent");
       return;
     }
@@ -85,20 +108,21 @@ async function main() {
     const state = loadState(statePath);
     const decision = decideRun(days, state, { brief, runDate: new Date().toISOString().slice(0, 10), plan, fedPivotSet: fed.set });
     for (const line of decision.log) console.log(line);
+    const messages = await Promise.all(decision.messages.map(addAi));
 
     if (dryRun) {
-      for (const m of decision.messages) {
+      for (const m of messages) {
         // Plan alerts never go to the log: on a public fork it's public.
         console.log(m.personal ? "\n[plan alert: sent to your channels only]" : `\n[${m.priority}] ${m.title}\n${m.body}`);
       }
-      console.log(`\n(dry run: ${decision.messages.length} message(s) not sent; state not saved)`);
+      console.log(`\n(dry run: ${messages.length} message(s) not sent; state not saved)`);
       return;
     }
 
-    for (const m of decision.messages) await send(m);
+    for (const m of messages) await send(m);
     mkdirSync(dirname(statePath), { recursive: true });
     writeFileSync(statePath, JSON.stringify(decision.next, null, 2) + "\n");
-    console.log(`sent ${decision.messages.length} message(s); state saved`);
+    console.log(`sent ${messages.length} message(s); state saved`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (!dryRun && channels.length) {

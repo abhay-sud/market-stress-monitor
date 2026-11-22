@@ -105,6 +105,7 @@ time in winter, 6:30pm in summer).
 | `DISCORD_WEBHOOK_URL` | Discord alerts |
 | `SLACK_WEBHOOK_URL` | Slack alerts |
 | `MY_PLAN` | Your own wave triggers (see below) |
+| `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` or `OPENAI_API_KEY` | Optional AI summary in the brief (see below) |
 
 **Variables** (same page, *Variables* tab):
 
@@ -140,6 +141,23 @@ The alert says only which wave was hit, for example *"Wave 2 trigger hit
 (slow bear)"*. Your levels never appear in an alert or in the Actions log, and
 what to do is up to your own plan. An alert fires once when the level rises,
 and again only after ten quiet trading days.
+
+## AI summary (optional)
+
+Add one AI key and the daily brief gets a short paragraph on what the
+reading adds up to, written by the model you choose:
+
+| Provider | Secret | Variable |
+|---|---|---|
+| Anthropic (Claude) | `ANTHROPIC_API_KEY` | `AI_MODEL` optional (default `claude-sonnet-5-5`) |
+| Google Gemini | `GEMINI_API_KEY` | `AI_MODEL` required (a Gemini model name) |
+| Any OpenAI-compatible API (OpenAI, DeepSeek, OpenRouter, a local server...) | `OPENAI_API_KEY` | `AI_MODEL` required; `OPENAI_BASE_URL` for anything but OpenAI |
+
+The AI explains, it doesn't decide: it gets the day's computed reading, and
+**every number in its reply must appear in that reading**, or the paragraph is
+dropped and the brief goes out without it (the same if the provider errors or
+declines). It costs one short request per weekday on your own key. Set only
+one key; if several are set, Anthropic is used first, then Gemini.
 
 ## Privacy
 

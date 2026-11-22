@@ -72,6 +72,12 @@ jobs:
           MY_PLAN: ${{ secrets.MY_PLAN }}
           BRIEF: ${{ vars.BRIEF }}
           FED_PIVOT: ${{ vars.FED_PIVOT }}
+          # Optional AI paragraph in the brief: one key (see docs/run-your-own.md).
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL }}
+          AI_MODEL: ${{ vars.AI_MODEL }}
 
       - uses: actions/cache/save@v4
         if: success() && !inputs.test && !inputs.dry_run
