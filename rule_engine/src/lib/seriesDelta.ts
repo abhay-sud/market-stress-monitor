@@ -1,4 +1,5 @@
 import { supabase, getLatestDataPoint } from "./supabase.js";
+import { sp500Derived, NO_TRAILING_LOW, type Point } from "../sp500History.js";
 
 /**
  * 7-day calendar-day delta for a data_points series — mirrors
@@ -120,32 +121,38 @@ export async function getTradingDayAnchor(anchorDate: string, tradingDaysBack: n
 }
 
 /**
- * Whether `anchorValue` (the S&P close on `anchorDate`) is at or below the
- * lowest close in the trailing `windowSize` trading days, inclusive of
- * anchorDate itself — i.e. a fresh N-trading-day low, not just "below some
- * old all-time high". Backs rules.ts's slow-bear wave pathway (added
- * 2026-09-19): distinguishes an actively deteriorating market from one
- * that's merely still below a stale multi-year-old peak (SPY didn't
- * reclaim its Oct-2007 high until 2013, so "still below ATH" alone stayed
- * true for years after the GFC actually bottomed and calmed down).
+ * Trading days since the S&P last closed at a fresh 252-trading-day low, as
+ * of `anchorDate` (0 = that day is one). A fresh ~1-year low, not just
+ * "below some old all-time high", backs the slow-bear wave pathway (added
+ * 2026-09-19): it distinguishes an actively deteriorating market from one
+ * that's merely still below a stale multi-year-old peak (SPY didn't reclaim
+ * its Oct-2007 high until 2013).
  *
- * Degrades to false (not a throw) when fewer than windowSize rows exist —
- * early in this system's own SP500 backfill history, rather than blocking
- * the whole classify() run over an insufficiently long lookback.
+ * Counted from the stored SP500 closes (sp500History.ts, shared with the
+ * "run your own" replay). Until 2026-11-22 the count was carried forward as
+ * the prior row's value plus one, so it rose on every run (two or three a
+ * trading day, Saturdays included) rather than every trading day, which
+ * would have made the slow-bear freshness window, set in trading days,
+ * expire two to three times too early. NO_TRAILING_LOW (9999) when the
+ * stored history holds no such low.
  */
-export async function isTrailingLow(anchorDate: string, anchorValue: number, windowSize: number): Promise<boolean> {
-  const { data, error } = await supabase
-    .from("data_points")
-    .select("value")
-    .eq("series_id", "SP500")
-    .lte("observation_date", anchorDate)
-    .order("observation_date", { ascending: false })
-    .limit(windowSize);
-
-  if (error) {
-    throw new Error(`isTrailingLow: failed reading SP500 history on/before ${anchorDate}: ${error.message}`);
+export async function daysSinceTrailingLow(anchorDate: string): Promise<number> {
+  const closes: Point[] = [];
+  const PAGE = 1000;
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from("data_points")
+      .select("observation_date, value")
+      .eq("series_id", "SP500")
+      .lte("observation_date", anchorDate)
+      .order("observation_date", { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error) {
+      throw new Error(`daysSinceTrailingLow: failed reading SP500 history on/before ${anchorDate}: ${error.message}`);
+    }
+    closes.push(...(data ?? []).map((d) => ({ date: d.observation_date as string, value: Number(d.value) })));
+    if (!data || data.length < PAGE) break;
   }
-  if (!data || data.length === 0) return false;
-  const windowMin = Math.min(...data.map((d) => d.value));
-  return anchorValue <= windowMin;
+  const derived = sp500Derived(closes);
+  return derived.length ? derived[derived.length - 1].daysSinceLow : NO_TRAILING_LOW;
 }

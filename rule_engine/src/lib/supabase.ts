@@ -53,8 +53,6 @@ export interface LatestSnapshotRow {
   sp500_trough_date: string | null;
   recovery_confirmed: boolean;
   recovery_confirmed_date: string | null;
-  // Slow-bear wave pathway state (added 2026-09-19) — see rules.ts.
-  sp500_days_since_252d_low: number | null;
 }
 
 /** The most recent crash_checks row, for carrying forward manually-judged
@@ -66,7 +64,7 @@ export async function getLatestCrashCheck(): Promise<LatestSnapshotRow | null> {
   const { data, error } = await supabase
     .from("crash_checks")
     .select(
-      "warsh_classification, warsh_classification_date, warsh_hard_rules_active, fed_pivot_signal, trigger_status, confirmation_state, confirmed_red_count, sp500_trough, sp500_trough_date, recovery_confirmed, recovery_confirmed_date, sp500_days_since_252d_low",
+      "warsh_classification, warsh_classification_date, warsh_hard_rules_active, fed_pivot_signal, trigger_status, confirmation_state, confirmed_red_count, sp500_trough, sp500_trough_date, recovery_confirmed, recovery_confirmed_date",
     )
     .order("run_at", { ascending: false })
     .limit(1)
@@ -99,8 +97,8 @@ export interface CrashCheckInsert {
   confirmation_state: Record<string, ConfirmationEntry>;
   wave_authorized: boolean;
   // Trading days since S&P last set a fresh 252-day (~1yr) rolling low —
-  // public input to mcp_server's local slow-bear wave check. Carried
-  // forward day-to-day, not recomputed from full history each run.
+  // public input to mcp_server's local slow-bear wave check. Counted from
+  // the stored S&P closes each run (seriesDelta.ts daysSinceTrailingLow).
   sp500_days_since_252d_low: number;
   warsh_classification: "HAWKISH" | "MODERATE" | "DOVISH" | "PENDING" | null;
   warsh_classification_date: string | null;

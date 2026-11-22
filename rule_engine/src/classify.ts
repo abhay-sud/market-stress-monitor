@@ -3,24 +3,8 @@ import { computeDivergences } from "./divergence.js";
 import { gatherHazardFeatures, computeHazardProbability, type HazardResult } from "./hazardModel.js";
 import { updateHazardScorecard } from "./hazardScorecardStore.js";
 import { updateScenarioScorecard } from "./scenarioScorecardStore.js";
-import { baselineScore, bandBaseline } from "./hazardScorecard.js";
-import {
-  bandVix,
-  bandHySpreadBps,
-  bandSpDrawdownPct,
-  bandTreasury10y,
-  bandSahmRule,
-  bandFedPivotSignal,
-  bandVixRecovery,
-  isRecoveredFromTrough,
-  countReds,
-  isWaveAuthorized,
-  drawdownPct,
-  computeConfirmation,
-  computeDistanceToRed,
-  type ConfirmationEntry,
-} from "./rules.js";
-import { isTrailingLow } from "./lib/seriesDelta.js";
+import { stepPanel } from "./panelStep.js";
+import { daysSinceTrailingLow as computeDaysSinceTrailingLow } from "./lib/seriesDelta.js";
 
 async function requireLatest(seriesId: string) {
   const point = await getLatestDataPoint(seriesId);
@@ -42,15 +26,6 @@ export async function classify(): Promise<void> {
     requireLatest("SAHMREALTIME"),
   ]);
 
-  const hySpreadBps = hySpread.value * 100; // FRED reports BAMLH0A0HYM2 in percent
-  const drawdown = drawdownPct(sp500.value, sp500Ath.value);
-
-  const vixColor = bandVix(vix.value);
-  const hySpreadColor = bandHySpreadBps(hySpreadBps);
-  const spDrawdownColor = bandSpDrawdownPct(drawdown);
-  const treasury10yColor = bandTreasury10y(treasury10y.value);
-  const sahmRuleColor = bandSahmRule(sahmRule.value);
-
   // Fed pivot signal has no clean numeric source (it's a read on Fed
   // communications) — carried forward from the last known value rather than
   // guessed. Same treatment as Warsh classification: a flagged manual/LLM
@@ -60,56 +35,51 @@ export async function classify(): Promise<void> {
   if (!prior) {
     console.warn('No prior crash_checks row found — defaulting fed_pivot_signal to "NONE". Confirm/override manually on the next chat-run.');
   }
-  const fedPivotColor = bandFedPivotSignal(fedPivotSignal);
 
-  const redCount = countReds([vixColor, hySpreadColor, spDrawdownColor, treasury10yColor, sahmRuleColor, fedPivotColor]);
-
-  // Signal Tiering & Confirmation Windows (crash-check-rules.md v5): each of
-  // the 5 numeric Tier-1 indicators must hold its color across 2+ distinct
-  // observation dates before it counts toward wave authorization. Fed pivot
-  // signal has no numeric series behind it (manually/LLM-judged, carried
-  // forward above) — confirmation-by-distinct-date doesn't mean anything for
-  // it, so it's excluded from this mechanism and its RED state (if any)
-  // counts toward confirmed_red_count immediately, same as it always has.
-  const priorConfirmation = prior?.confirmation_state ?? {};
-  const confirmationState: Record<string, ConfirmationEntry> = {
-    vix: computeConfirmation(vixColor, vix.observation_date, priorConfirmation.vix),
-    hy_spread: computeConfirmation(hySpreadColor, hySpread.observation_date, priorConfirmation.hy_spread),
-    sp_drawdown: computeConfirmation(spDrawdownColor, sp500.observation_date, priorConfirmation.sp_drawdown),
-    treasury_10y: computeConfirmation(treasury10yColor, treasury10y.observation_date, priorConfirmation.treasury_10y),
-    sahm_rule: computeConfirmation(sahmRuleColor, sahmRule.observation_date, priorConfirmation.sahm_rule),
-  };
-
-  const confirmedRedCount =
-    Object.values(confirmationState).filter((c) => c.color === "RED" && c.confirmed).length +
-    (fedPivotColor === "RED" ? 1 : 0);
-
-  // Distance-to-RED (E7): read-only view of the same 5 readings and their
-  // confirmation streaks against PANEL_BANDS. Computed from the five panel
-  // entries above (before slow-bear/recovery keys are added to the object)
-  // and never read back by any count or wave decision below.
-  const distanceToRed = computeDistanceToRed(
+  // Bands, confirmation streaks, stress gate, distance-to-RED, the drawdown
+  // + VIX risk band and the Stage 4 trough/recovery state: one pure step
+  // (panelStep.ts), shared with the stateless "run your own" replay.
+  const panel = stepPanel(
     {
-      vix: { value: vix.value, observation_date: vix.observation_date, confirmation: confirmationState.vix },
-      hy_spread: { value: hySpreadBps, observation_date: hySpread.observation_date, confirmation: confirmationState.hy_spread },
-      sp_drawdown: { value: drawdown, observation_date: sp500.observation_date, confirmation: confirmationState.sp_drawdown },
-      treasury_10y: { value: treasury10y.value, observation_date: treasury10y.observation_date, confirmation: confirmationState.treasury_10y },
-      sahm_rule: { value: sahmRule.value, observation_date: sahmRule.observation_date, confirmation: confirmationState.sahm_rule },
+      vix,
+      hy_spread_pct: hySpread,
+      sp500,
+      sp500_ath: sp500Ath,
+      treasury_10y: treasury10y,
+      sahm_rule: sahmRule,
+      fed_pivot_signal: fedPivotSignal,
     },
-    { level: sp500.value, ath: sp500Ath.value },
-    { state: fedPivotSignal, color: fedPivotColor },
+    prior,
   );
-  const waveAuthorized = isWaveAuthorized(confirmedRedCount);
+  const {
+    hy_spread_bps: hySpreadBps,
+    sp_drawdown_pct: drawdown,
+    vix_color: vixColor,
+    hy_spread_color: hySpreadColor,
+    sp_drawdown_color: spDrawdownColor,
+    treasury_10y_color: treasury10yColor,
+    sahm_rule_color: sahmRuleColor,
+    fed_pivot_color: fedPivotColor,
+    red_count: redCount,
+    confirmed_red_count: confirmedRedCount,
+    confirmation_state: confirmationState,
+    wave_authorized: waveAuthorized,
+    distance_to_red: distanceToRed,
+    in_episode: inEpisode,
+    dd_vix_score: ddVixScore,
+    dd_vix_band: ddVixBand,
+    sp500_trough: sp500Trough,
+    sp500_trough_date: sp500TroughDate,
+    recovery_confirmed: recoveryConfirmed,
+    recovery_confirmed_date: recoveryConfirmedDate,
+  } = panel;
 
   // Trading days since the S&P set a 252-trading-day low: a public market
   // input to the slow-bear wave check, which runs locally in mcp_server
   // (waveEvaluation.ts) because the wave triggers are personal policy.
-  // Carried forward day to day rather than recomputed from full history:
-  // 0 whenever today sets a fresh low, otherwise the prior count plus one.
-  // Defaults to a large sentinel (never "fresh") when there's no prior
-  // count, so a missing value can't be misread as "at a fresh low today".
-  const isFreshTrailingLow = await isTrailingLow(sp500.observation_date, sp500.value, 252);
-  const daysSinceTrailingLow = isFreshTrailingLow ? 0 : (prior?.sp500_days_since_252d_low ?? 9999) + 1;
+  // Counted from the stored S&P closes each run (see seriesDelta.ts), not
+  // carried forward, so extra runs on the same close don't inflate it.
+  const daysSinceTrailingLow = await computeDaysSinceTrailingLow(sp500.observation_date);
 
   const divergenceFlags = await computeDivergences();
 
@@ -149,85 +119,6 @@ export async function classify(): Promise<void> {
       console.error("hazardModel: failed to compute, nulling out this run's hazard fields:", err);
       hazardStatus = "UNAVAILABLE";
     }
-  }
-
-  // Drawdown + VIX risk band: the public-facing answer to "could a 10%
-  // drawdown start within ~21 trading days?" since 2026-11-17. The logistic
-  // model above failed every out-of-sample test against this two-input rule
-  // (reference_docs/hazard-model-rebuild-brief.md), so the rule is what the
-  // dashboard and MCP now show. The model is still computed, only so the
-  // hazard_scorecard keeps recording both side by side. Same eligibility as
-  // the model: the question has no meaning once drawdown is already >= 10%.
-  const ddVixScore = drawdown < 10 ? Math.round(baselineScore(drawdown, vix.value) * 100) / 100 : null;
-  const ddVixBand = ddVixScore === null ? null : bandBaseline(baselineScore(drawdown, vix.value));
-
-  // Stage 4 recovery tracking (crash-check-rules.md "Recovery Signal and
-  // 6-Month Transition", added 2026-08-16 — previously pure prose, no code).
-  // Trough is a running minimum for the CURRENT OPEN episode — "open" means
-  // drawdown reached >=10% at some point and recovery hasn't been confirmed
-  // yet, not merely "drawdown is >=10% right now". Previously the trough was
-  // nulled the instant drawdown dipped back under 10%, which discarded the
-  // reference recoveryCriterion1 needs on exactly the runs recovery is
-  // supposed to be detected on (external review 2026-09-19, F08: peak 100 /
-  // trough 80 / current 93 could never recover because the trough was
-  // cleared before the 15% rebound was evaluated against it). wasEpisodeOpen
-  // is captured *before* updating the trough for this run, so the "did we
-  // just start a new episode" check below isn't affected by this run's own
-  // update.
-  const wasEpisodeOpen = (prior?.sp500_trough ?? null) !== null && !(prior?.recovery_confirmed ?? false);
-  const inEpisode = drawdown >= 10;
-  let sp500Trough = prior?.sp500_trough ?? null;
-  let sp500TroughDate = prior?.sp500_trough_date ?? null;
-  if (inEpisode) {
-    if (!wasEpisodeOpen || sp500Trough === null || sp500.value < sp500Trough) {
-      // Either a fresh episode is starting (the prior one, if any, already
-      // closed via recovery_confirmed) or this run set a new deeper low
-      // within the still-open episode.
-      sp500Trough = sp500.value;
-      sp500TroughDate = sp500.observation_date;
-    }
-  } else if (!wasEpisodeOpen) {
-    // Drawdown is under 10% and there's no open episode being monitored for
-    // recovery (never entered one, or the last one already closed) —
-    // nothing to track.
-    sp500Trough = null;
-    sp500TroughDate = null;
-  }
-  // else: drawdown has pulled back under 10% but the episode is still open
-  // (recovery not yet confirmed) — retain the trough so recoveryCriterion1
-  // below can still evaluate the rebound against it.
-
-  // Criterion 3 (VIX sustained below 25 for 3+ weeks) reuses
-  // computeConfirmation with requiredCount: 15 (~3 weeks of trading days)
-  // instead of the standard 2 — a separate confirmation_state key
-  // ("vix_recovery") from the main panel's own "vix" entry (bandVix), since
-  // it's a different threshold (25, not 20/35) for a different purpose.
-  const vixRecoveryColor = bandVixRecovery(vix.value);
-  const vixRecoveryEntry = computeConfirmation(vixRecoveryColor, vix.observation_date, priorConfirmation.vix_recovery, 15);
-  confirmationState.vix_recovery = vixRecoveryEntry;
-
-  const recoveryCriterion1 = sp500Trough !== null && isRecoveredFromTrough(sp500.value, sp500Trough);
-  // Criterion 2 reuses fed_pivot_signal as-is (no new field) — the "within 2
-  // meetings" recency nuance isn't independently tracked, same honesty-first
-  // treatment as every other manual-judgment field in this system.
-  const recoveryCriterion2 = fedPivotSignal === "CUT";
-  const recoveryCriterion3 = vixRecoveryEntry.color === "GREEN" && vixRecoveryEntry.confirmed;
-
-  // recovery_confirmed is a historical fact about the most recent drawdown
-  // episode, not a flickering daily state — once true it stays true until a
-  // *new* episode begins (transition into an episode that wasn't already
-  // open), at which point it resets for that new episode.
-  // recovery_confirmed_date is set once, on the run it first becomes true,
-  // and never overwritten afterward.
-  let recoveryConfirmed = prior?.recovery_confirmed ?? false;
-  let recoveryConfirmedDate = prior?.recovery_confirmed_date ?? null;
-  if (inEpisode && !wasEpisodeOpen) {
-    recoveryConfirmed = false;
-    recoveryConfirmedDate = null;
-  }
-  if (!recoveryConfirmed && recoveryCriterion1 && recoveryCriterion2 && recoveryCriterion3) {
-    recoveryConfirmed = true;
-    recoveryConfirmedDate = sp500.observation_date;
   }
 
   await insertCrashCheck({
