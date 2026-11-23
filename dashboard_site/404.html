@@ -6,6 +6,30 @@
 <title>Page Not Found</title>
 <link rel="apple-touch-icon" href="/icon-192.png">
 <meta name="theme-color" content="#0d0d0d">
+<script>
+  // Light/dark (2026-11-23): a saved choice wins, else the device setting.
+  // Runs before the CSS so the page never flashes the wrong theme. Any
+  // [data-theme-toggle] button flips it; the choice is kept per site.
+  (function () {
+    var d = document.documentElement, m = matchMedia("(prefers-color-scheme: dark)");
+    function saved() { try { return localStorage.getItem("msm-theme"); } catch (e) { return null; } }
+    function apply() {
+      var t = saved();
+      if (t !== "light" && t !== "dark") t = m.matches ? "dark" : "light";
+      d.setAttribute("data-theme", t);
+      var c = document.querySelector('meta[name="theme-color"]');
+      if (c) c.setAttribute("content", t === "dark" ? "#0d0d0d" : "#f9f9f7");
+    }
+    apply();
+    if (m.addEventListener) m.addEventListener("change", apply);
+    document.addEventListener("click", function (e) {
+      var b = e.target.closest && e.target.closest("[data-theme-toggle]");
+      if (!b) return;
+      try { localStorage.setItem("msm-theme", d.getAttribute("data-theme") === "dark" ? "light" : "dark"); } catch (err) {}
+      apply();
+    });
+  })();
+</script>
 <style>
   /* Same theme tokens as index.html, copied not shared -- this is a
      standalone static file Cloudflare Pages serves directly for any
@@ -23,8 +47,7 @@
     --neutral-blue-bg:#e7f0fc;
     --ground:         #0b0b0b;
   }
-  @media (prefers-color-scheme: dark) {
-    :root {
+  :root[data-theme="dark"] {
       --surface-1:      #1a1a19;
       --page:           #0d0d0d;
       --text-primary:   #ffffff;
@@ -36,7 +59,6 @@
       --neutral-blue-bg:#132537;
       --ground:         #ffffff;
     }
-  }
   * { box-sizing: border-box; }
   body {
     font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -76,6 +98,16 @@
   .game-hud { display: flex; justify-content: space-between; width: 100%; max-width: 480px; font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
   #dino-canvas { background: var(--page); border-radius: 6px; max-width: 100%; touch-action: manipulation; }
   .game-hint { font-size: 11px; color: var(--text-muted); margin: 0; }
+  /* Light/dark toggle: moon in light mode, sun in dark. */
+  :root[data-theme="light"] { color-scheme: light; }
+  :root[data-theme="dark"] { color-scheme: dark; }
+  .theme-btn { all:unset; box-sizing:border-box; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; width:26px; height:22px; flex:none;
+    border:1px solid var(--hair-strong); border-radius:4px; color:var(--text-secondary); }
+  .theme-btn:hover { color:var(--text-primary); }
+  .theme-btn:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+  .theme-btn svg { width:14px; height:14px; }
+  .theme-btn .sun, :root[data-theme="dark"] .theme-btn .moon { display:none; }
+  :root[data-theme="dark"] .theme-btn .sun { display:block; }
 </style>
 </head>
 <body>

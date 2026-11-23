@@ -447,6 +447,7 @@ function renderTopbar(activeTab: string, runAt: string | null, withTabs: boolean
       <span class="when">${runAt ? `Run ${escapeHtml(formatRunAt(runAt))} · ` : ""}<span id="loaded" data-ts="${loadedAt.getTime()}">Loaded ${escapeHtml(formatTimeEt(loadedAt))}</span></span>
       <a class="ext" href="${PUBLIC_DASHBOARD_URL}">Public dashboard ↗</a>
       <button class="dn-btn" id="refresh-btn" title="Refresh">&#8635;</button>
+      <button class="theme-btn" type="button" data-theme-toggle aria-label="Switch between light and dark mode" title="Light / dark mode"><svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg><svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
     </div>
   </header>`;
 }
@@ -876,6 +877,30 @@ function renderShell(title: string, body: string, full = false): string {
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Portfolio Report">
+<script>
+  // Light/dark (2026-11-23): a saved choice wins, else the device setting.
+  // Runs before the CSS so the page never flashes the wrong theme. Any
+  // [data-theme-toggle] button flips it; the choice is kept per site.
+  (function () {
+    var d = document.documentElement, m = matchMedia("(prefers-color-scheme: dark)");
+    function saved() { try { return localStorage.getItem("msm-theme"); } catch (e) { return null; } }
+    function apply() {
+      var t = saved();
+      if (t !== "light" && t !== "dark") t = m.matches ? "dark" : "light";
+      d.setAttribute("data-theme", t);
+      var c = document.querySelector('meta[name="theme-color"]');
+      if (c) c.setAttribute("content", t === "dark" ? "#0d0d0d" : "#f9f9f7");
+    }
+    apply();
+    if (m.addEventListener) m.addEventListener("change", apply);
+    document.addEventListener("click", function (e) {
+      var b = e.target.closest && e.target.closest("[data-theme-toggle]");
+      if (!b) return;
+      try { localStorage.setItem("msm-theme", d.getAttribute("data-theme") === "dark" ? "light" : "dark"); } catch (err) {}
+      apply();
+    });
+  })();
+</script>
 <style>${PAGE_CSS}</style>
 </head>
 <body>
@@ -931,6 +956,16 @@ ${content}
 // Same tokens and building blocks as dashboard_site (body.rd), copied rather
 // than shared: the two sites deploy separately and this one has no build step.
 const PAGE_CSS = `
+  /* Light/dark toggle: moon in light mode, sun in dark. */
+  :root[data-theme="light"] { color-scheme: light; }
+  :root[data-theme="dark"] { color-scheme: dark; }
+  .theme-btn { all:unset; box-sizing:border-box; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; width:26px; height:22px; flex:none;
+    border:1px solid var(--hair-strong); border-radius:4px; color:var(--text-secondary); }
+  .theme-btn:hover { color:var(--text-primary); }
+  .theme-btn:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+  .theme-btn svg { width:14px; height:14px; }
+  .theme-btn .sun, :root[data-theme="dark"] .theme-btn .moon { display:none; }
+  :root[data-theme="dark"] .theme-btn .sun { display:block; }
   :root {
     color-scheme: light dark;
     --page:#f9f9f7; --surface-1:#fcfcfb; --sunk:#f1f0ec; --hair:rgba(11,11,11,.09); --hair-strong:rgba(11,11,11,.16);
@@ -941,11 +976,11 @@ const PAGE_CSS = `
     --t1: 600 26px/1.1 var(--font-ui); --t2: 400 13px/1.4 var(--font-ui); --t2-num: 600 15px/1.2 var(--font-ui);
     --t3: 400 11px/1.35 var(--font-ui); --label: 600 10.5px/1 var(--font-ui);
   }
-  @media (prefers-color-scheme: dark) { :root {
+  :root[data-theme="dark"] {
     --page:#0d0d0d; --surface-1:#161615; --sunk:#121211; --hair:rgba(255,255,255,.08); --hair-strong:rgba(255,255,255,.15);
     --text-primary:#f4f4f1; --text-secondary:#c3c2b7; --text-muted:#9a988f;
     --good:#2fb52f; --warning-bg:#251c08; --critical-bg:#2c1211; --accent:#5a9cec;
-  } }
+  }
   * { box-sizing:border-box; }
   body { margin:0; background:var(--page); color:var(--text-primary); font:var(--t2); font-variant-numeric:tabular-nums lining-nums; -webkit-font-smoothing:antialiased; }
   button { font:inherit; color:inherit; }
