@@ -256,7 +256,7 @@ user's own key.
   "I backtested my own crash signals", plus r/Bogleheads, r/investing and MCP
   directories, ideally during a market sell-off.
 
-## Lightweight MCP mode ("Ask Claude about your plan")
+## Lightweight MCP mode ("Ask Claude about your portfolio")
 
 Status: built 2026-11-22. Verified live against FRED and Yahoo, and in a
 real Claude Code session; the raw-data parity test, the 2020/2022 wave

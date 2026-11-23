@@ -1,4 +1,4 @@
-// Lightweight MCP mode ("Ask Claude about your plan"): a small, read-only
+// Lightweight MCP mode ("Ask Claude about your portfolio"): a small, read-only
 // stdio MCP server started by the reader's own MCP client. Market data comes
 // straight from FRED (the reader's key), Yahoo and Treasury, replayed through
 // the same rules as the live site; the plan and portfolio come from the

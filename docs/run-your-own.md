@@ -34,7 +34,7 @@ Not investment advice · marketstress.org
 | S&P 500 *n*% below its high | The S&P crosses 10% or 20% below its all-time high (once per fall) |
 | Recovery confirmed | The rules' recovery test passes after a 10%+ fall |
 | Data is stale / run failed | A source stopped updating, or a run broke |
-| Wave *N* trigger hit | Only if you add your own plan (see below) |
+| Wave *N* trigger hit | Only if you add your crash plan (see below) |
 
 The rules are the same code as [marketstress.org](https://marketstress.org/)
 (see [the rules](../reference_docs/rules/crash-check-rules.md)). Your copy
@@ -50,7 +50,7 @@ Pick one:
 - **Fork** (quickest): click **Fork** at the top of the repo page. Forks of a
   public repo are public, including their Actions logs. Your secrets stay
   secret, but don't put anything personal in files.
-- **Private copy** (recommended if you'll add your own plan): click **Use this
+- **Private copy** (recommended if you'll add your crash plan): click **Use this
   template → Create a new repository** and choose **Private**. Logs stay
   private and scheduled runs never pause, but you won't get updates with one
   click (see [Updating](#updating)).
@@ -119,7 +119,7 @@ To change the bands or the stress gate, edit
 [`config/monitoring.yaml`](../config/monitoring.yaml) in your copy. It's the
 same file the live site uses.
 
-## Your own plan (optional)
+## Your crash plan (optional)
 
 If you keep cash ready to invest in a sell-off in stages ("waves"), you can
 get an alert when your own trigger levels are hit. Add a `MY_PLAN` secret with
@@ -139,22 +139,22 @@ wave_triggers:
 
 The alert says only which wave was hit, for example *"Wave 2 trigger hit
 (slow bear)"*. Your levels never appear in an alert or in the Actions log, and
-what to do is up to your own plan. An alert fires once when the level rises,
+what to do is up to your own crash plan. An alert fires once when the level rises,
 and again only after ten quiet trading days.
 
-## Ask Claude about your plan (optional)
+## Ask Claude about your portfolio (optional)
 
-Alerts tell you when something happens. To ask questions in between ("what
-does my plan say today?", "how close is Wave 2?", "has my portfolio
-drifted?"), run the same engine as a small MCP server for Claude Desktop or
+Alerts tell you when something happens. To ask questions in between ("how's
+my portfolio looking today?", "how close is Wave 2 of my crash plan?",
+"has anything drifted?"), run the same engine as a small MCP server for Claude Desktop or
 Claude Code (or any other MCP client). It runs on your own computer: it
-fetches the data itself with your FRED key, reads your plan and portfolio
+fetches the data itself with your FRED key, reads your crash plan and portfolio
 from two local files, and nothing is hosted or stored anywhere else.
 
 Here is Claude answering on the [example files](#2-add-your-files), with the
 market as of Friday 20 November 2026:
 
-> **Your plan:** No wave is armed, so nothing to deploy now.
+> **Your crash plan:** No wave is armed, so nothing to deploy now.
 > Wave 1 (fast panic): 3.4 drawdown points to go; VIX is already above its
 > threshold. Wave 2: 13.4 drawdown points to go on both pathways (slow bear:
 > 0 of 2 dates met). Wave 3: 23.4 drawdown points to go, and VIX would need to
@@ -242,7 +242,7 @@ claude mcp add market-stress --scope user -e FRED_API_KEY=your-key -- node REPO/
 Add `"FED_PIVOT": "PAUSE"` (or `CUT`) to `env` for your own read of the Fed,
 as with the alerts.
 
-Then ask, for example, *"What does my plan say today?"*. You can also run the
+Then ask, for example, *"How's my portfolio looking today?"*. You can also run the
 prompt: `/mcp__market-stress__check_my_plan` in Claude Code, or the **+**
 menu in Claude Desktop.
 

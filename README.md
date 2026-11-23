@@ -58,12 +58,12 @@ levels), Telegram/Discord/Slack/email, and a short AI summary from the
 model of your choice, whose numbers are checked against the data before it's
 sent. **[Ten-minute setup →](docs/run-your-own.md)**
 
-## Your private layer: ask Claude about your own plan
+## Your private layer: ask Claude about your portfolio
 
 The public site tells everyone the state of the market. The private layer
-turns that into **your** plan, on your own computer. You write your crash plan
-(when each "wave" of your cash reserve goes in, and where) and your target
-allocation into two local files. Then you ask Claude:
+turns that into answers about **your** portfolio, on your own computer. You
+write your target allocation and your crash plan (when each "wave" of your
+cash reserve goes in, and where) into two local files. Then you ask Claude:
 
 <p align="center">
   <img src="docs/screenshots/private-chat.png" alt="A chat with Claude. The question: What does my plan say today? Claude calls four tools on the local market-stress MCP server (get_reading, get_changes, get_my_plan, get_portfolio_drift) and answers: as of Nov 20, 1 of 6 indicators RED (VIX 35.89, not yet confirmed), 3 AMBER, the S&P 500 11.6% below its high. Drawdown risk rose to High on Nov 17. No wave is armed, so nothing to deploy now: Wave 1 is 3.4 drawdown points away and VIX is already past its part, Wave 2 is 13.4 points away, Wave 3 is 23.4 points away. Drift: the retirement account's US total market is at 54% against a 60% target (DRIFTED), cash 6% against 0%; everything else on target." width="720">
@@ -72,12 +72,12 @@ allocation into two local files. Then you ask Claude:
 That is a real answer, from the [example files](local_state/my_plan.example.yaml)
 and the market on Friday 20 November 2026. **The numbers come from code, not
 from the model:** the server replays the same rules as the live site and does
-the plan and drift arithmetic, and Claude only explains the result.
+the crash-plan and drift arithmetic, and Claude only explains the result.
 
 - **Which of your waves is armed**, by which pathway, since when, and how far
   the others are. The fast-panic pathway needs a drawdown plus a VIX level; the
   slow-bear pathway needs a drawdown held at a fresh one-year low.
-- **What your plan says to deploy now**, in dollars if you give your cash
+- **What your crash plan says to deploy now**, in dollars if you give your cash
   reserve. It counts every armed wave you haven't marked done, so a crash that
   skips straight to Wave 2 brings Wave 1 back too.
 - **Portfolio drift** against your targets, flagged by the 5/25 rule.
@@ -88,7 +88,7 @@ It needs only a free FRED key and Node.js. It runs on your machine as a small,
 read-only MCP server for Claude Desktop, Claude Code or any MCP client. There's
 no database and no hosting, and it costs nothing beyond your own Claude plan.
 Your files never leave your computer, except what Claude puts into the chat.
-**[Set it up →](docs/run-your-own.md#ask-claude-about-your-plan-optional)**
+**[Set it up →](docs/run-your-own.md#ask-claude-about-your-portfolio-optional)**
 
 ### The full setup adds a private report
 
@@ -114,7 +114,7 @@ See [AI workflows over MCP](#ai-workflows-over-mcp) and the
 ## Contents
 
 - [Get the alerts yourself](#get-the-alerts-yourself)
-- [Your private layer](#your-private-layer-ask-claude-about-your-own-plan)
+- [Your private layer](#your-private-layer-ask-claude-about-your-portfolio)
 - [Why this exists](#why-this-exists)
 - [The dashboard](#the-dashboard)
 - [How it works](#how-it-works)
@@ -192,7 +192,7 @@ flowchart LR
 | Component | What it does |
 |---|---|
 | [`ingestion/`](ingestion/) | Pulls each source into Supabase. A plausibility guard quarantines implausible values before they're written, and a backfill script loads each series' full history. No LLM and no classification logic. |
-| [`rule_engine/`](rule_engine/) | Pure functions: the six-indicator panel, confirmation windows, the stress gate, cross-indicator divergence flags and the drawdown risk band. Writes `crash_checks`. Also holds the "run your own" alerts copy (`src/lite/`), which replays the same per-day logic from public data with no database, and its lightweight MCP server (`npm run mcp`) that answers questions about your own plan from local files. Vitest suite. |
+| [`rule_engine/`](rule_engine/) | Pure functions: the six-indicator panel, confirmation windows, the stress gate, cross-indicator divergence flags and the drawdown risk band. Writes `crash_checks`. Also holds the "run your own" alerts copy (`src/lite/`), which replays the same per-day logic from public data with no database, and its lightweight MCP server (`npm run mcp`) that answers questions about your own portfolio and crash plan from local files. Vitest suite. |
 | [`mcp_server/`](mcp_server/) | Local stdio [Model Context Protocol](https://modelcontextprotocol.io/) server. 21 tools: workflow instructions, market state, context indicators, rules lookup, portfolio drift, watchlist, wave evaluation, deployment planning and fire drill, fund-filing watch, and write/persist tools. Runs locally because it's the only component that reads personal data. `node:test` suite. |
 | [`dashboard_site/`](dashboard_site/) | Public static site on Cloudflare Pages, no build step. Reads only public market data with the anon key. A small worker server-renders the latest reading for crawlers and AI tools. |
 | [`full_report_site/`](full_report_site/) | Private page behind Cloudflare Access: wave status, personal triggers, the watchlist with insider activity, crash-type diagnosis and the portfolio review. Rendered server-side, so no credential reaches the browser. |
