@@ -80,7 +80,11 @@ install/build steps.
      no wave field is stored on the public `crash_checks` table. The "run
      your own" copy evaluates a user's own triggers with copies of
      `waveEvaluation.ts` and `waveAlert.ts` in `rule_engine/src/lite/plan.ts`;
-     change them together.
+     change them together. Its lightweight MCP server (`npm run mcp`,
+     `rule_engine/src/lite/mcp.ts`) copies `computeWaveDeployment` and the
+     5/25 drift rule into `rule_engine/src/lite/money.ts`, and the rules-doc
+     section lookup into `lite/rulesDoc.ts`; `config/fixtures/lite-money.json`
+     is checked by a test in both packages.
    - The Fed pivot's data floor (`rule_engine/src/fedPivot.ts`) keeps a copy
      of the FOMC dates in `mcp_server/src/lib/economicCalendar.ts`; extend
      both together (a test checks they match). `write_snapshot` enforces the

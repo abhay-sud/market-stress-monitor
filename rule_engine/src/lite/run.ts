@@ -19,20 +19,12 @@ import { detectEvents, formatBrief } from "./events.js";
 import { aiParagraph, aiProviderFromEnv, withAiParagraph, type AiProvider } from "./ai.js";
 import { parsePlan } from "./plan.js";
 import { channelsFromEnv, sendAll, type Message } from "./notify.js";
-import { briefMode, decideRun, EMPTY_STATE, type LiteState } from "./decide.js";
-import type { FedPivotSignal } from "../panelStep.js";
+import { briefMode, decideRun, EMPTY_STATE, fedPivotSetting, type LiteState } from "./decide.js";
 
 const REPLAY_YEARS = 2;
 const args = new Set(process.argv.slice(2));
 const dryRun = args.has("--dry-run");
 const test = args.has("--test");
-
-function fedPivotSetting(): { value: FedPivotSignal; set: boolean } {
-  const v = (process.env.FED_PIVOT ?? "").trim().toUpperCase();
-  if (v === "") return { value: "NONE", set: false };
-  if (v === "NONE" || v === "PAUSE" || v === "CUT") return { value: v, set: true };
-  throw new Error("FED_PIVOT must be NONE, PAUSE or CUT");
-}
 
 function loadState(path: string): LiteState {
   if (!existsSync(path)) return EMPTY_STATE;
@@ -64,7 +56,7 @@ async function main() {
   try {
     const apiKey = process.env.FRED_API_KEY;
     if (!apiKey) throw new Error("FRED_API_KEY is not set (free key: https://fred.stlouisfed.org/docs/api/api_key.html)");
-    const fed = fedPivotSetting();
+    const fed = fedPivotSetting(process.env.FED_PIVOT);
     const brief = briefMode(process.env.BRIEF);
     const plan = process.env.MY_PLAN?.trim() ? parsePlan(process.env.MY_PLAN) : null;
     const from = new Date(Date.now() - REPLAY_YEARS * 365.25 * 86_400_000).toISOString().slice(0, 10);

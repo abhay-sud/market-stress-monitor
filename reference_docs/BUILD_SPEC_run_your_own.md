@@ -256,12 +256,184 @@ user's own key.
   "I backtested my own crash signals", plus r/Bogleheads, r/investing and MCP
   directories, ideally during a market sell-off.
 
-## Later: lightweight MCP mode
+## Lightweight MCP mode ("Ask Claude about your plan")
 
-After Tier 1, about one session: the same replay code behind a small MCP
-server, so Claude Desktop or Claude Code can ask for the current reading with
-only a FRED key, no Supabase. Its value is discovery through MCP directories.
-Build it only once Tier 1 is live.
+Status: built 2026-11-22. Verified live against FRED and Yahoo, and in a
+real Claude Code session; the raw-data parity test, the 2020/2022 wave
+replays and the end-to-end server test are in `rule_engine/src/lite/`.
+Widened from the original
+"current reading only" note: the reason to build it is the private layer
+(your plan and your portfolio next to the market reading), not the reading
+alone, which the alerts copy already sends.
+
+### Goal
+
+A reader with a free FRED key and two small local files can ask Claude
+Desktop or Claude Code "what does my plan say today?" and get the same
+reading as the live site, which of their waves is armed and how close the
+others are, the amounts their plan would deploy, and how far their
+portfolio has drifted from its targets. No Supabase, no Cloudflare, no
+GitHub Actions, no server to host.
+
+### How it runs
+
+- A stdio MCP server started by the reader's own MCP client on their own
+  machine: `npx tsx rule_engine/src/lite/mcp.ts`. Nothing is hosted.
+- Each call needing market data uses the Tier 1 fetch and replay
+  (`fetchLiteHistory` → `replay`) directly from the reader's machine: FRED
+  with their key, Yahoo and Treasury without one. It never reads the
+  upstream Supabase, so readers cost the upstream project nothing and keep
+  working if it stops.
+- The fetched history is cached on disk (`.lite-state/mcp-history.json`,
+  already gitignored) and re-fetched when it's older than the latest settled
+  close (the same settle rule as `parseYahooCloses`) or 6 hours, whichever
+  comes first. A failed fetch serves the cache with a `stale` flag, or an
+  error naming the source.
+- **Read-only.** The server writes nothing except that cache: no write
+  tools, no state, no telemetry. Outbound calls go only to FRED, Yahoo and
+  Treasury.
+
+### Where it lives
+
+`rule_engine/src/lite/mcp.ts` (new), plus `npm run mcp` in `rule_engine`.
+The replay, events and wave evaluation are already in `rule_engine/src/lite/`,
+so the reader installs one package. `rule_engine` gains two dependencies:
+`@modelcontextprotocol/sdk` and `zod`, the same versions as `mcp_server`.
+
+Two small pure functions from `mcp_server` are copied into
+`rule_engine/src/lite/money.ts`, each with a comment naming the original:
+
+- `computeWaveDeployment` (`mcp_server/src/lib/waveDeployment.ts`)
+- `computePortfolioDrift` and `driftThresholdPts`, the 5/25 rule
+  (`mcp_server/src/lib/portfolio.ts`)
+
+There's no cross-package import at run time. A shared fixture
+(`config/fixtures/lite-money.json`: inputs plus expected outputs) is checked
+by a test in each package, so the copies can't drift silently. AGENTS.md
+gets a line for this pair next to the other copies.
+
+### The reader's files
+
+Both are optional and live in `local_state/` by default (already
+gitignored), or wherever `MSM_PLAN_PATH` / `MSM_PORTFOLIO_PATH` point.
+Generic examples are tracked as `local_state/my_plan.example.yaml` and
+`local_state/my_portfolio.example.yaml`, with round illustrative numbers and
+no fund names beyond generic ones ("US total market", "Bonds").
+
+`my_plan.yaml` is a superset of the `MY_PLAN` secret, so one file works for
+both:
+
+```yaml
+wave_triggers:            # required; exactly the MY_PLAN format (parsePlan)
+  fast_panic: { ... }
+  slow_bear: { ... }
+cash_reserve_usd: 20000   # optional; without it, amounts are shown as % only
+waves:                    # optional; how each wave splits
+  WAVE_1:
+    pct_of_reserve: 25
+    splits:
+      - { name: "US total market", pct_of_wave: 60 }
+      - { name: "International", pct_of_wave: 40 }
+  WAVE_2: { ... }
+  WAVE_3: { ... }
+executed:                 # optional; edited by hand after buying
+  WAVE_1: "2026-11-24"
+```
+
+`my_portfolio.yaml`:
+
+```yaml
+accounts:
+  main:
+    holdings_pct: { us_total_market: 55, international: 25, bonds: 20 }
+    target_pct:   { us_total_market: 60, international: 25, bonds: 15 }
+```
+
+Validation errors name the key, never echo a value (the same rule as
+`parsePlan`).
+
+### Tools
+
+| Tool | Returns | Needs |
+|---|---|---|
+| `get_reading` | Today's six-indicator panel: value, colour, observation date and confirmation streak per indicator; stress gate; drawdown risk band (or "not scored" past 10%); distance to RED; drawdown, all-time high, trough, days since the 252-day low; stale series; the Fed pivot and its rate facts. Optional `date` for any replayed day. | FRED key |
+| `get_changes` | Events over the last N trading days (default 5, max 60), from `detectEvents`: confirmed RED in or out, gate, band, drawdown lines, recovery. | FRED key |
+| `get_my_plan` | Per wave: armed or not, which pathway, confirmation progress, distance to its triggers (drawdown points, VIX points), executed or pending. If the reserve and splits are given: the cumulative, execution-aware amounts to deploy now (the same rule as `get_deployment_plan`). | `my_plan.yaml` |
+| `get_portfolio_drift` | Per account and holding: actual, target, drift and the 5/25 threshold, ON_TARGET or DRIFTED. | `my_portfolio.yaml` |
+| `get_rules` | The table of contents, or one section of `crash-check-rules.md` (copied section lookup; no personal-rules merge). | nothing |
+
+Plus one MCP prompt, `check_my_plan`: call `get_reading`, `get_my_plan` and
+`get_portfolio_drift`, then explain in plain language, quote the numbers as
+given, and don't recalculate them. That's the one-click entry point in
+clients that show prompts.
+
+Each tool description says the numbers are computed by code and are not
+investment advice. A tool whose file is missing returns a setup hint
+(copy the example, set the path), not an error.
+
+The Fed pivot uses `FED_PIVOT` plus the data floor, exactly as in Tier 1.
+There's no AI write-back: the reader's Claude can discuss the Fed in chat,
+but it can't set the signal.
+
+### Privacy
+
+- The dollar amounts and holdings are read from local files at call time and
+  returned to the reader's own MCP client. **They do go to the reader's AI
+  provider as part of the conversation.** The docs say this plainly. A
+  reader who wants no dollar figures in chat leaves `cash_reserve_usd` out
+  and gets percentages only.
+- No logging of tool results, file contents or amounts to stderr; logs carry
+  only source names, dates and counts.
+- Nothing is written to the repo or sent anywhere except the three data
+  sources.
+
+### Setup (docs)
+
+Claude Code:
+
+```
+claude mcp add market-stress -e FRED_API_KEY=... -- npx tsx <repo>/rule_engine/src/lite/mcp.ts
+```
+
+Claude Desktop: a `claude_desktop_config.json` snippet with the same command,
+`cwd` set to `rule_engine`, and the Windows variant (`cmd /c npx ...`). The
+docs go in a new section of `docs/run-your-own.md`, "Ask Claude about your
+plan", after the alerts setup. The README gets the "Your private layer"
+section: this mode first (with a chat mockup from real output on the example
+files), and the full setup's Full Report page shown as "the full setup adds".
+
+### Out of scope for this mode
+
+The Full Report page, the watchlist and insider activity, 13F, fund-filing
+watch, crash-type diagnosis and its layers, stored history and scorecards,
+write tools of any kind, and publishing to npm or an MCP registry (a later,
+separate step once it has been used for a while).
+
+### Acceptance criteria
+
+1. With only `FRED_API_KEY`, `get_reading` for a date in the Tier 1 parity
+   fixture returns the stored `crash_checks` colours,
+   `confirmed_red_count`, `dd_vix_band` and drawdown for that date.
+2. `get_my_plan` on the example plan over the 2020 and 2022 fixtures arms
+   waves in the same order and on the same dates as `evaluateWaves`; the
+   amounts are cumulative and skip executed waves.
+3. The shared money fixture passes in both `rule_engine` and `mcp_server`.
+4. With no plan or portfolio file, those two tools return a setup hint, and
+   the other three still work.
+5. A second call within the cache window makes no network request; a fetch
+   failure serves the cache flagged `stale`.
+6. A test runs every tool on the example files and checks that stderr
+   contains no amount or holding from them.
+7. `npm run typecheck` and `npm test` pass in `rule_engine` and
+   `mcp_server`; the full `mcp_server` is unchanged in behaviour.
+8. Manual: connected in Claude Code and Claude Desktop on Windows, the
+   `check_my_plan` prompt gives a sensible answer on the example files.
+
+### Effort
+
+About two sessions: (1) the server, the five tools, the cache and the copied
+money functions with the shared fixture; (2) the example files, the
+remaining tests, the docs section, then the README section and mockups.
 
 ## Out of scope
 
@@ -303,7 +475,7 @@ own dashboard) waits until people ask for it.
 | Optional AI brief, three provider types, with the number check | 0.5–1 session |
 | README rework | 0.5 session |
 
-About 4 sessions in total. The lightweight MCP mode (later) is about 1 more.
+About 4 sessions in total. The lightweight MCP mode is about 2 more (see its section).
 
 ## Decisions (2026-11-21)
 

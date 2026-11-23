@@ -142,6 +142,127 @@ The alert says only which wave was hit, for example *"Wave 2 trigger hit
 what to do is up to your own plan. An alert fires once when the level rises,
 and again only after ten quiet trading days.
 
+## Ask Claude about your plan (optional)
+
+Alerts tell you when something happens. To ask questions in between ("what
+does my plan say today?", "how close is Wave 2?", "has my portfolio
+drifted?"), run the same engine as a small MCP server for Claude Desktop or
+Claude Code (or any other MCP client). It runs on your own computer: it
+fetches the data itself with your FRED key, reads your plan and portfolio
+from two local files, and nothing is hosted or stored anywhere else.
+
+Here is Claude answering on the [example files](#2-add-your-files), with the
+market as of Friday 20 November 2026:
+
+> **Your plan:** No wave is armed, so nothing to deploy now.
+> Wave 1 (fast panic): 3.4 drawdown points to go; VIX is already above its
+> threshold. Wave 2: 13.4 drawdown points to go on both pathways (slow bear:
+> 0 of 2 dates met). Wave 3: 23.4 drawdown points to go, and VIX would need to
+> rise 4.11 points.
+>
+> **Drift:** Retirement: US total market at 54% vs a 60% target (−6 pts,
+> DRIFTED), cash at 6% vs a 0% target (+6 pts, DRIFTED); international and
+> bonds on target. Taxable: everything on target.
+
+The numbers come from code, not from the model. Claude only explains them.
+
+### What it can answer
+
+| Tool | Answers |
+|---|---|
+| `get_reading` | Today's reading (or any day in the last two years): the six indicators with colour, confirmation and distance to RED, the stress gate, the drawdown risk band, the S&P's high, drawdown and trough |
+| `get_changes` | What changed over the last few trading days, including your own wave triggers |
+| `get_my_plan` | Which of your waves is armed and since when, how far each trigger is, and what your plan says to deploy now: every armed wave you haven't marked done, in dollars if you give a cash reserve |
+| `get_portfolio_drift` | How far each holding is from its target, flagged by the 5/25 rule |
+| `get_rules` | Any section of [the rules](../reference_docs/rules/crash-check-rules.md) |
+
+Plus a ready-made prompt, **check_my_plan**, that runs them together and
+explains the result.
+
+### 1. Install
+
+You need [Node.js](https://nodejs.org/) 22 or later and a copy of the repo
+on your computer:
+
+```bash
+git clone https://github.com/abhay-sud/market-stress-monitor.git
+cd market-stress-monitor/rule_engine
+npm ci
+```
+
+(For a private copy, clone yours instead.)
+
+### 2. Add your files
+
+Both are optional, and both live in `local_state/`, which git ignores:
+
+```bash
+cp local_state/my_plan.example.yaml local_state/my_plan.yaml
+cp local_state/my_portfolio.example.yaml local_state/my_portfolio.yaml
+```
+
+Then edit them.
+
+- **[`my_plan.yaml`](../local_state/my_plan.example.yaml)** holds:
+  - your wave triggers, in the same format as the `MY_PLAN` secret, so one file serves both;
+  - optionally, your cash reserve and how each wave splits;
+  - the dates of waves you've already bought.
+- **[`my_portfolio.yaml`](../local_state/my_portfolio.example.yaml)** holds each account's holdings and targets, in percent.
+
+To keep the files somewhere else, set `MSM_PLAN_PATH` and
+`MSM_PORTFOLIO_PATH` to their paths.
+
+### 3. Connect it
+
+In the commands below, `REPO` stands for the full path of your copy, for
+example `C:/Users/you/market-stress-monitor` or
+`/Users/you/market-stress-monitor`.
+
+**Claude Code:**
+
+```bash
+claude mcp add market-stress --scope user -e FRED_API_KEY=your-key -- node REPO/rule_engine/node_modules/tsx/dist/cli.mjs REPO/rule_engine/src/lite/mcp.ts
+```
+
+**Claude Desktop:** open Settings → Developer → Edit Config and add this to
+`claude_desktop_config.json`, then restart Claude Desktop:
+
+```json
+{
+  "mcpServers": {
+    "market-stress": {
+      "command": "node",
+      "args": ["REPO/rule_engine/node_modules/tsx/dist/cli.mjs", "REPO/rule_engine/src/lite/mcp.ts"],
+      "env": { "FRED_API_KEY": "your-key" }
+    }
+  }
+}
+```
+
+Add `"FED_PIVOT": "PAUSE"` (or `CUT`) to `env` for your own read of the Fed,
+as with the alerts.
+
+Then ask, for example, *"What does my plan say today?"*. You can also run the
+prompt: `/mcp__market-stress__check_my_plan` in Claude Code, or the **+**
+menu in Claude Desktop.
+
+### What stays private, and what doesn't
+
+- **Nothing is hosted.** The server runs on your computer and only reads
+  your files. It writes one file, a cache of the market data in
+  `rule_engine/.lite-state/`, and connects only to FRED, Yahoo Finance and
+  the US Treasury.
+- **What you ask about goes to your AI provider.** When Claude answers, the
+  readings, your trigger levels and any amounts become part of the chat, as
+  with anything you type. To keep dollar figures out of it, leave
+  `cash_reserve_usd` out of `my_plan.yaml`, and the plan is shown in percent
+  only.
+- The server's own log carries only dates and counts, never your levels,
+  holdings or amounts.
+
+The first question of the day takes a few seconds while it fetches; later
+ones answer from the cache, which refreshes after each US close.
+
 ## AI summary (optional)
 
 Add one AI key and the daily brief gets a short paragraph on what the
@@ -195,7 +316,11 @@ one key; if several are set, Anthropic is used first, then Gemini.
   without sending them.
 - **"FRED_API_KEY is not set"** or **"No notification channel is set up":**
   check the secret names exactly as written above.
-- **"MY_PLAN is invalid":** the message names the key that's missing or
-  wrong; compare with the example above.
+- **"MY_PLAN is invalid"** or **"my_plan.yaml is invalid":** the message
+  names the key that's missing or wrong; compare with the example above.
+- **Claude doesn't see the market-stress tools:** check that both paths in
+  the config are full paths to your copy and that `npm ci` ran in
+  `rule_engine`, then restart the client. In Claude Code, `claude mcp list`
+  shows whether the server connected.
 - **"No new S&P 500 close" alert:** a data source may be down. The run keeps
   using the last values and retries the next evening.

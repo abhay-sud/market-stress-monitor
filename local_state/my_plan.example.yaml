@@ -1,0 +1,50 @@
+# Example plan for the lightweight MCP server ("Ask Claude about your plan").
+# Copy to local_state/my_plan.yaml (gitignored) and make it yours, or point
+# MSM_PLAN_PATH at a file anywhere else. The server only reads it.
+#
+# The wave_triggers block is the same format as the MY_PLAN secret in
+# docs/run-your-own.md, so one file serves both. Every number here is
+# ILLUSTRATIVE, not a recommendation.
+
+# When each wave arms. fast_panic: the S&P 500 at least drawdown_pct_gte
+# below its all-time high AND VIX above vix_gt, on the same day. slow_bear
+# (Waves 2 and 3): the drawdown plus a fresh one-year S&P low within the
+# window, on 2 trading dates in a row, for grinding falls where VIX stays low.
+wave_triggers:
+  fast_panic:
+    WAVE_1: { drawdown_pct_gte: 15, vix_gt: 30 }
+    WAVE_2: { drawdown_pct_gte: 25, vix_gt: 35 }
+    WAVE_3: { drawdown_pct_gte: 35, vix_gt: 40 }
+  slow_bear:
+    freshness_window_trading_days: 30
+    WAVE_2: { drawdown_pct_gte: 25 }
+    WAVE_3: { drawdown_pct_gte: 35 }
+
+# Optional. The cash you set aside for a fall. Leave it out to see each
+# wave as a percentage only: amounts you ask about go to your AI provider as
+# part of the chat.
+cash_reserve_usd: 20000
+
+# Optional. Each wave's share of the reserve and how it splits. The splits
+# of one wave add up to 100; the waves together add up to 100 or less.
+waves:
+  WAVE_1:
+    pct_of_reserve: 25
+    splits:
+      - { name: "US total market", pct_of_wave: 60 }
+      - { name: "International", pct_of_wave: 40 }
+  WAVE_2:
+    pct_of_reserve: 35
+    splits:
+      - { name: "US total market", pct_of_wave: 50 }
+      - { name: "International", pct_of_wave: 30 }
+      - { name: "Small-cap value", pct_of_wave: 20 }
+  WAVE_3:
+    pct_of_reserve: 40
+    splits:
+      - { name: "US total market", pct_of_wave: 70 }
+      - { name: "International", pct_of_wave: 30 }
+
+# Optional. After you buy a wave, add the date so it isn't offered again.
+executed:
+  # WAVE_1: 2026-11-24

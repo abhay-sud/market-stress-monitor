@@ -1,0 +1,43 @@
+{
+  "_comment": "Shared test fixture for the copied money calculations: rule_engine/src/lite/money.ts (waveAmounts, accountDrift) and mcp_server/src/lib/waveDeployment.ts + portfolio.ts (computeWaveDeployment, computePortfolioDrift). Each package's test checks it. Illustrative numbers only.",
+  "waves": [
+    {
+      "reserve_usd": 20000,
+      "wave": { "pct_of_reserve": 25, "splits": [{ "name": "US total market", "pct_of_wave": 60 }, { "name": "International", "pct_of_wave": 40 }] },
+      "expected": { "pct_of_reserve": 25, "total_usd": 5000, "splits_usd": [3000, 2000] }
+    },
+    {
+      "reserve_usd": 12345.67,
+      "wave": { "pct_of_reserve": 15, "splits": [{ "name": "A", "pct_of_wave": 33.3 }, { "name": "B", "pct_of_wave": 33.3 }, { "name": "C", "pct_of_wave": 33.4 }] },
+      "expected": { "pct_of_reserve": 15, "total_usd": 1851.85, "splits_usd": [616.67, 616.67, 618.52] }
+    }
+  ],
+  "drift": [
+    {
+      "holdings_pct": { "us_total_market": 52, "international": 25, "bonds": 20, "cash": 3 },
+      "target_pct": { "us_total_market": 60, "international": 25, "bonds": 15 },
+      "expected": {
+        "entries": [
+          { "holding": "us_total_market", "actual_pct": 52, "target_pct": 60, "drift_pts": -8, "threshold_pts": 5, "status": "DRIFTED" },
+          { "holding": "bonds", "actual_pct": 20, "target_pct": 15, "drift_pts": 5, "threshold_pts": 3.75, "status": "DRIFTED" },
+          { "holding": "cash", "actual_pct": 3, "target_pct": 0, "drift_pts": 3, "threshold_pts": 2, "status": "DRIFTED" },
+          { "holding": "international", "actual_pct": 25, "target_pct": 25, "drift_pts": 0, "threshold_pts": 5, "status": "ON_TARGET" }
+        ],
+        "max_drift_pts": 8,
+        "has_drifted": true
+      }
+    },
+    {
+      "holdings_pct": { "stocks": 61.5, "bonds": 38.5 },
+      "target_pct": { "stocks": 60, "bonds": 40 },
+      "expected": {
+        "entries": [
+          { "holding": "stocks", "actual_pct": 61.5, "target_pct": 60, "drift_pts": 1.5, "threshold_pts": 5, "status": "ON_TARGET" },
+          { "holding": "bonds", "actual_pct": 38.5, "target_pct": 40, "drift_pts": -1.5, "threshold_pts": 5, "status": "ON_TARGET" }
+        ],
+        "max_drift_pts": 1.5,
+        "has_drifted": false
+      }
+    }
+  ]
+}

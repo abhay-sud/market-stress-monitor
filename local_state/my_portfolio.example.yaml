@@ -1,0 +1,16 @@
+# Example portfolio for the lightweight MCP server ("Ask Claude about your
+# plan"). Copy to local_state/my_portfolio.yaml (gitignored), or point
+# MSM_PORTFOLIO_PATH at a file anywhere else. The server only reads it.
+#
+# Percentages only: what share of each account every holding is now, and
+# its target. Names are yours to choose. Every number here is ILLUSTRATIVE.
+# A holding is flagged DRIFTED when it is further from its target than the
+# smaller of 5 points or 25% of its target (never under 2 points).
+
+accounts:
+  retirement:
+    holdings_pct: { us_total_market: 54, international: 24, bonds: 16, cash: 6 }
+    target_pct:   { us_total_market: 60, international: 25, bonds: 15 }
+  taxable:
+    holdings_pct: { us_total_market: 70, international: 30 }
+    target_pct:   { us_total_market: 70, international: 30 }

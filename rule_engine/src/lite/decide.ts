@@ -10,6 +10,7 @@ import type { DayState } from "./replay.js";
 import { detectEvents, formatBrief, shortDate, type LiteEvent } from "./events.js";
 import { evaluateWaves, waveAlertDays, waveAlertMessage, type WaveTriggers } from "./plan.js";
 import type { Message } from "./notify.js";
+import type { FedPivotSignal } from "../panelStep.js";
 
 export interface LiteState {
   last_date: string | null;
@@ -18,6 +19,14 @@ export interface LiteState {
 }
 
 export const EMPTY_STATE: LiteState = { last_date: null, last_brief_date: null, sp500_stale_alerted_for: null };
+
+/** The FED_PIVOT setting: NONE when unset (`set` false), else NONE, PAUSE or CUT. */
+export function fedPivotSetting(raw: string | undefined): { value: FedPivotSignal; set: boolean } {
+  const v = (raw ?? "").trim().toUpperCase();
+  if (v === "") return { value: "NONE", set: false };
+  if (v === "NONE" || v === "PAUSE" || v === "CUT") return { value: v, set: true };
+  throw new Error("FED_PIVOT must be NONE, PAUSE or CUT");
+}
 
 export type BriefMode = "daily" | "weekly" | "off";
 
