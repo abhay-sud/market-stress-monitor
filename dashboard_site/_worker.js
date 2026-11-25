@@ -34,7 +34,7 @@ const INDICATORS = [
   { name: "S&P 500 drawdown from all-time high", short: "S&P 500 drawdown", v: "sp_drawdown_pct", c: "sp_drawdown_color", conf: "sp_drawdown", fmt: (v) => `${v.toFixed(2)}%` },
   { name: "10-year Treasury yield", short: "10-year Treasury yield", v: "treasury_10y_pct", c: "treasury_10y_color", conf: "treasury_10y", fmt: (v) => `${v.toFixed(2)}%` },
   { name: "Sahm rule", short: "Sahm rule", v: "sahm_rule_value", c: "sahm_rule_color", conf: "sahm_rule", fmt: (v) => v.toFixed(2) },
-  { name: "Fed pivot signal", short: "Fed pivot signal", v: "fed_pivot_signal", c: "fed_pivot_color", conf: null, fmt: (v) => (v === "NONE" ? "none" : String(v).toLowerCase()) },
+  { name: "Fed pivot signal", short: "Fed pivot signal", v: "fed_pivot_signal", c: "fed_pivot_color", conf: null, fmt: (v) => (v === "NONE" ? "no pivot" : String(v).toLowerCase()) },
 ];
 // Copied from index.html (DD_VIX_BAND_LABELS / DD_VIX_HIT_RATE / ddVixReading).
 const DD_VIX_BAND_LABELS = { LOW: "Low", TRANSITIONING: "Elevated", HIGH: "High" };
@@ -520,7 +520,12 @@ function markdown(data) {
   }
   const notes = data.full?.notes ? String(data.full.notes).replace(RUN_LABEL, "").trim() : "";
   if (notes) {
-    lines.push("", `## Narrative (${fmtDate(data.full.run_at, false)})`, "", notes.replace(/\r\n/g, "\n"));
+    // Same note as index.html's fromReportNote: the narrative comes from the
+    // last full report, so its figures can predate the table above.
+    const older = Date.parse(data.full.run_at) < Date.parse(f.asOf);
+    lines.push("", `## Narrative (${fmtDate(data.full.run_at, false)})`, "",
+      ...(older ? [`From the ${fmtDate(data.full.run_at, true)} full report; its figures predate the newer readings above.`, ""] : []),
+      notes.replace(/\r\n/g, "\n"));
   }
   lines.push("", "---", "", DISCLAIMER, "", `Cite as: Market Stress Monitor, ${SITE}/, reading of ${fmtDate(f.asOf, false)}.`, "");
   return lines.join("\n");
