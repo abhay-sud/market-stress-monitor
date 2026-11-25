@@ -26,13 +26,29 @@
       "@id": "https://marketstress.org/#site",
       "name": "Market Stress Monitor",
       "url": "https://marketstress.org/",
+      "publisher": { "@id": "https://marketstress.org/#org" },
       "description": "A daily read on market crash risk from public macro and market data."
     },
     {
+      "@type": "Organization",
+      "@id": "https://marketstress.org/#org",
+      "name": "Market Stress Monitor",
+      "url": "https://marketstress.org/",
+      "logo": "https://marketstress.org/icon-512.png"
+    },
+    {
       "@type": "Dataset",
+      "@id": "https://marketstress.org/#dataset",
       "name": "Market Stress Monitor daily crash-risk classification",
       "url": "https://marketstress.org/",
       "isPartOf": { "@id": "https://marketstress.org/#site" },
+      "creator": { "@id": "https://marketstress.org/#org" },
+      "distribution": {
+        "@type": "DataDownload",
+        "contentUrl": "https://marketstress.org/latest.md",
+        "encodingFormat": "text/markdown",
+        "description": "The latest reading as plain text."
+      },
       "description": "Each weekday, six public indicators (VIX, high-yield credit spreads, S&P 500 drawdown from its all-time high, the 10-year Treasury yield, the Sahm rule and Fed policy signals) are classified RED, AMBER or GREEN by fixed rules, with confirmation days before a signal counts. Context covers market positioning (CFTC, put/call, margin debt), institutional 13F flows, a fiscal-dominance checklist and the yield curve. A personal project, not investment advice.",
       "isAccessibleForFree": true,
       "variableMeasured": ["VIX", "ICE BofA US High Yield option-adjusted spread", "S&P 500 drawdown from all-time high", "10-year Treasury yield", "Sahm rule recession indicator", "Fed policy pivot signal"],

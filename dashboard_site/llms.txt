@@ -15,7 +15,7 @@ Six core indicators, each classified RED, AMBER or GREEN every weekday. A readin
 - S&P 500 drawdown from its all-time closing high. Favourable below 10%.
 - 10-year Treasury yield. Favourable below 4.3%.
 - Sahm rule: rise in the 3-month average unemployment rate above its 12-month low. Favourable below 0.3.
-- Fed policy signal: whether the Federal Reserve is holding, pausing or signalling cuts.
+- Fed pivot signal: whether the Federal Reserve is holding, pausing or cutting. An AI judgment of Fed communication, checked against the Fed funds target and the FOMC calendar: if the Fed's most recent decision was a cut, the signal is CUT whatever the AI says.
 
 The overall stress level depends on how many of these are confirmed RED. Alongside: a drawdown risk band (S&P drawdown + VIX/5, with historical hit rates) and, in each written report, an AI view of the chance of a 10%+ fall within 3 months. The AI view starts from the historical rate for the band and may move it one fixed 5-point step, with stated reasons. The narrative is AI-written judgment, not a model output.
 
@@ -25,6 +25,7 @@ These have no traffic light and don't count toward the gate, but they cover fina
 
 - Financial-stress indexes: OFR Financial Stress Index (U.S. Treasury; includes other advanced and emerging economies), St. Louis Fed Financial Stress Index, Chicago Fed NFCI with its risk and credit subindices.
 - Funding and liquidity: the SOFR repo rate, overnight reverse repo, Fed balance-sheet net liquidity, the broad trade-weighted dollar.
+- Inflation expectations and term premium: the 5-year, 5-year forward inflation expectation and the 10-year breakeven (both from Treasury and TIPS yields via FRED, not swap rates) and the Kim-Wright 10-year term premium; the latest values are in /latest.md.
 - Credit and economy: investment-grade spread, bank lending standards, jobless claims, credit-card delinquencies, recession probabilities, market breadth, regional-bank stress.
 - Cross-indicator divergence flags (e.g. high-yield spread vs VIX, gold vs silver).
 
@@ -36,6 +37,15 @@ Not covered: euro-area stress (ECB CISS) and offshore dollar funding (cross-curr
 - Smart Money (https://marketstress.org/smart-money): market positioning as historical percentiles (CFTC futures positioning, CBOE put/call, FINRA margin debt) and institutional 13F net buying by sector.
 - Macro & Fiscal (https://marketstress.org/macro): the context indicators above, a fiscal-dominance checklist and the yield curve (3M, 2Y, 10Y, 30Y).
 - Notable Views (https://marketstress.org/views): public views of well-known macro investors and economists compared with the live data. The views themselves (paraphrases with source links and dates) are in the page's HTML; the comparison with live data loads with JavaScript.
+
+## Run it yourself
+
+The project is open source (MIT). Two optional ways to use the same rules on your own money, without this site ever seeing it:
+
+- Alerts on your phone: a copy that runs free on GitHub Actions, applies your own crash plan (levels at which you would add money) to the same public data, and sends a push notification when a level is reached. Your levels never appear in an alert or a log.
+- Ask Claude about your portfolio: a small, read-only MCP server on your own computer. Claude (Desktop or Code) can then read today's reading, your crash plan and how far your holdings have drifted from their targets, from files that stay on your machine. It needs only a free FRED API key.
+
+Setup guide: https://github.com/abhay-sud/market-stress-monitor/blob/main/docs/run-your-own.md
 
 ## Data sources
 

@@ -6,7 +6,7 @@
 // the same reading as plain text at /latest.md. Browsers get the same page
 // as before; the client-side render replaces the inserted headline.
 //
-// Scope: _routes.json sends only "/", the tab pages (TAB_PAGES) and
+// Scope: _routes.json sends only "/", the tab pages (TAB_PAGES), "/sitemap.xml" and
 // "/latest.md" here; every other file
 // is served as a plain static asset. It lives in dashboard_site (the Pages
 // output folder) because the project has no root dir, so a functions/ folder
@@ -22,7 +22,7 @@ const SUPABASE_URL = "https://jophlgbijfahmytkrjly.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_DAU2BkfrG_3-LU_fFKW1og_yVasDG6d";
 const SITE = "https://marketstress.org";
 const CACHE_SECONDS = 600;
-const CACHE_KEY = `${SITE}/__cache/latest-reading-v1`;
+const CACHE_KEY = `${SITE}/__cache/latest-reading-v2`;
 const FETCH_TIMEOUT_MS = 2000;
 
 const LATEST_FIELDS = "run_at,vix_value,vix_color,hy_spread_bps,hy_spread_color,sp_drawdown_pct,sp_drawdown_color,treasury_10y_pct,treasury_10y_color,sahm_rule_value,sahm_rule_color,fed_pivot_signal,fed_pivot_color,red_count,confirmed_red_count,confirmation_state,wave_authorized,warsh_classification,dd_vix_band,crash_probability_pct";
@@ -82,6 +82,7 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (url.pathname === "/latest.md") return latestMarkdown(request, ctx);
+    if (url.pathname === "/sitemap.xml") return sitemapXml(request, env, ctx);
     // "/views/" -> "/views": one URL per tab.
     if (url.pathname.length > 1 && url.pathname.endsWith("/") && TAB_PAGES[url.pathname.replace(/\/+$/, "")]) {
       return Response.redirect(`${url.origin}${url.pathname.replace(/\/+$/, "")}${url.search}`, 301);
@@ -100,6 +101,11 @@ export default {
     // Notable Views text comes from the static JSON, so it needs no Supabase.
     let views = null;
     let description = page?.description;
+    // Macro & Fiscal: today's numbers in the description (search snippets
+    // for e.g. "latest 5y5y inflation" showed the tab with no number).
+    if (page?.tab === "macro" && data) {
+      try { description = macroDescription(data) ?? description; } catch (e) { /* keep the static text */ }
+    }
     if (page?.tab === "analysts") {
       try {
         const r = await env.ASSETS.fetch(new Request(new URL("/analyst_views.json", url).toString()));
@@ -120,7 +126,17 @@ export default {
     if (data) {
       rw = rw
         .on("#stress-verdict", { element(el) { el.setInnerContent(verdictHtml(data), { html: true }); } })
-        .on("#site-summary", { element(el) { el.append(` ${escHtml(summarySentence(data))}`, { html: true }); } });
+        .on("#site-summary", { element(el) { el.append(` ${escHtml(summarySentence(data))}`, { html: true }); } })
+        .on('script[type="application/ld+json"]', datasetDateModified(data.row.run_at));
+      // The home page's description carries today's numbers, so search
+      // snippets, AI answers built on them and link previews show the live
+      // reading rather than a generic blurb (tab pages keep their own).
+      if (!page) {
+        const live = liveDescription(data);
+        rw = rw
+          .on('meta[name="description"]', { element(el) { el.setAttribute("content", live); } })
+          .on('meta[property="og:description"]', { element(el) { el.setAttribute("content", live); } });
+      }
     }
     if (page) {
       const canonical = `${SITE}${url.pathname}`;
@@ -156,6 +172,57 @@ async function latestMarkdown(request, ctx) {
   });
 }
 
+// Sitemap with real lastmod dates (2026-11-24): the three data tabs change
+// with each report, /views when analyst_views.json is reviewed. Falls back
+// to the static sitemap.xml if neither date is available.
+async function sitemapXml(request, env, ctx) {
+  if (request.method !== "GET" && request.method !== "HEAD") return env.ASSETS.fetch(request);
+  let data = null;
+  try { data = await loadLatest(ctx); } catch (e) { data = null; }
+  let reviewed = null;
+  try {
+    const r = await env.ASSETS.fetch(new Request(new URL("/analyst_views.json", request.url).toString()));
+    if (r.ok) reviewed = (await r.json()).last_reviewed ?? null;
+  } catch (e) { reviewed = null; }
+  if (!data && !reviewed) return env.ASSETS.fetch(request);
+  const day = data ? new Date(data.row.run_at).toISOString().slice(0, 10) : null;
+  const urls = [["/", day], ["/smart-money", day], ["/macro", day], ["/views", reviewed], ["/how-it-works", null]];
+  const body = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`
+    + urls.map(([p, d]) => `  <url>\n    <loc>${SITE}${p}</loc>\n${d ? `    <lastmod>${escHtml(d)}</lastmod>\n` : ""}  </url>\n`).join("")
+    + "</urlset>\n";
+  return new Response(request.method === "HEAD" ? null : body, {
+    headers: { "content-type": "application/xml; charset=utf-8", "cache-control": `public, max-age=${CACHE_SECONDS}` },
+  });
+}
+
+// Sets the Dataset's dateModified in the page's JSON-LD to the latest run.
+// Leaves the script untouched if it doesn't parse.
+function datasetDateModified(iso) {
+  let buf = "";
+  return {
+    text(t) {
+      buf += t.text;
+      if (!t.lastInTextNode) { t.remove(); return; }
+      let out = buf;
+      try {
+        const j = JSON.parse(buf);
+        const ds = (j["@graph"] ?? []).find((n) => n["@type"] === "Dataset");
+        if (ds && iso) { ds.dateModified = new Date(iso).toISOString(); out = `\n${JSON.stringify(j, null, 2)}\n`; }
+      } catch (e) { out = buf; }
+      t.replace(out, { html: true });
+    },
+  };
+}
+
+// e.g. "Nov 24, 2026: 0 of 6 crash-risk indicators confirmed RED. VIX 26.62
+// (amber), high-yield spread 376 bp (amber), … A daily read on US market
+// crash risk from public data; not investment advice."
+function liveDescription(data) {
+  const f = facts(data);
+  const list = f.indicators.map((i) => `${i.short} ${i.value} (${String(i.color).toLowerCase()}${i.pending ? ", pending" : ""})`).join(", ");
+  return `${fmtDate(f.asOf, false)}: ${f.confirmed} of 6 crash-risk indicators confirmed RED. ${list.charAt(0).toUpperCase()}${list.slice(1)}. A daily read on US market crash risk from public data; not investment advice.`;
+}
+
 // ---- Data -----------------------------------------------------------------
 
 async function loadLatest(ctx) {
@@ -173,9 +240,10 @@ async function loadLatest(ctx) {
     supabase("crash_checks?select=run_at,macro_narrative&macro_narrative=not.is.null&order=run_at.desc&limit=1").catch(() => []),
   ]);
   if (!latest[0]) return null;
-  const ctxLatest = {};
-  for (const r of context) if (!(r.series_id in ctxLatest)) ctxLatest[r.series_id] = r;
-  const data = { row: latest[0], full: full[0] ?? null, context: ctxLatest, macro: macro[0] ?? null };
+  // Rows come newest first: the first per series is the latest, the last the oldest in the window.
+  const ctxLatest = {}, ctxOldest = {};
+  for (const r of context) { if (!(r.series_id in ctxLatest)) ctxLatest[r.series_id] = r; ctxOldest[r.series_id] = r; }
+  const data = { row: latest[0], full: full[0] ?? null, context: ctxLatest, contextOldest: ctxOldest, macro: macro[0] ?? null };
   ctx.waitUntil(cache.put(CACHE_KEY, new Response(JSON.stringify(data), {
     headers: { "content-type": "application/json", "cache-control": `public, max-age=${CACHE_SECONDS}` },
   })));
@@ -197,10 +265,47 @@ async function supabase(path) {
 // traffic light, not in the gate). Listed here so AI tools reading
 // /latest.md see that the site covers more than the six gate indicators.
 // Signal wording mirrors CONTEXT_INFO in index.html; change them together.
-const CONTEXT_SERIES = ["OFR_FSI", "STLFSI4", "NFCI", "SOFR", "IORB", "DTWEXBGS"];
+const CONTEXT_SERIES = ["OFR_FSI", "STLFSI4", "NFCI", "SOFR", "IORB", "DTWEXBGS", "T5YIFR", "T10YIE", "THREEFYTP10", "WALCL"];
 const CONTEXT_LOOKBACK_DAYS = 45;
 
-function contextLines(ctx) {
+// Inflation expectations, term premium, the Fed balance sheet and the OFR
+// index (Macro & Fiscal tab), shared by /latest.md and the /macro description.
+// The 5y5y here is FRED's Treasury/TIPS measure, never presented as the ICE
+// swap rate people also search for.
+function macroFacts(data) {
+  const c = data.context ?? {}, o = data.contextOldest ?? {};
+  const pick = (id) => (c[id] ? { v: Number(c[id].value), d: c[id].observation_date } : null);
+  const f = { fwd: pick("T5YIFR"), be: pick("T10YIE"), tp: pick("THREEFYTP10"), ofr: pick("OFR_FSI"), bs: null };
+  const bs = pick("WALCL"); // millions of dollars
+  if (bs) {
+    const then = o.WALCL && o.WALCL.observation_date !== bs.d ? o.WALCL : null;
+    let trend = null;
+    if (then) {
+      const bn = Math.round((bs.v - Number(then.value)) / 1000);
+      const weeks = Math.round((Date.parse(bs.d) - Date.parse(then.observation_date)) / (7 * 86400000));
+      trend = bn === 0 ? `flat over ${weeks} weeks` : `${bn < 0 ? "down" : "up"} ${Math.abs(bn)} billion dollars over ${weeks} weeks (${bn < 0 ? "quantitative tightening" : "expanding"})`;
+    }
+    f.bs = { d: bs.d, text: `${(bs.v / 1e6).toFixed(2)} trillion dollars`, trend };
+  }
+  return f;
+}
+
+// e.g. "Nov 24, 2026 macro backdrop: 5y5y forward inflation expectation 2.13%
+// (from Treasury and TIPS yields), …". Null when none of the series loaded.
+function macroDescription(data) {
+  const m = macroFacts(data);
+  const parts = [];
+  if (m.fwd) parts.push(`5y5y forward inflation expectation ${m.fwd.v.toFixed(2)}% (from Treasury and TIPS yields)`);
+  if (m.be) parts.push(`10-year breakeven ${m.be.v.toFixed(2)}%`);
+  if (m.tp) parts.push(`10-year term premium ${m.tp.v.toFixed(2)}%`);
+  if (m.bs) parts.push(`Fed balance sheet ${m.bs.text}${m.bs.trend ? `, ${m.bs.trend}` : ""}`);
+  if (m.ofr) parts.push(`OFR Financial Stress Index ${m.ofr.v.toFixed(2)} (${m.ofr.v > 0 ? "above" : "below"} average)`);
+  if (!parts.length) return null;
+  const day = m.fwd?.d ?? m.be?.d ?? m.ofr?.d;
+  return `${day ? `${fmtDate(`${day}T12:00:00Z`, false)} macro backdrop: ` : "Macro backdrop: "}${parts.join(", ")}. Plus a fiscal dominance checklist and the Treasury yield curve. Public data; not investment advice.`;
+}
+
+function contextLines(ctx, oldest) {
   if (!ctx) return [];
   const v = (id) => ctx[id]?.value;
   const d = (id) => ctx[id]?.observation_date;
@@ -214,6 +319,11 @@ function contextLines(ctx) {
     out.push(`| SOFR overnight repo rate | ${v("SOFR").toFixed(2)}% | ${gap == null ? "repo-market funding cost" : `${gap >= 0 ? "+" : ""}${gap} bp vs the Fed's interest on reserves (${v("IORB").toFixed(2)}%); a sustained gap above it signals a cash squeeze`} | ${d("SOFR")} |`);
   }
   if (v("DTWEXBGS") != null) out.push(`| Broad trade-weighted US dollar index | ${v("DTWEXBGS").toFixed(2)} | a fast rise tightens conditions for foreign dollar borrowers | ${d("DTWEXBGS")} |`);
+  const m = macroFacts({ context: ctx, contextOldest: oldest });
+  if (m.fwd) out.push(`| 5-year, 5-year forward inflation expectation (FRED T5YIFR, from Treasury and TIPS yields; not a swap rate) | ${m.fwd.v.toFixed(2)}% | average inflation the bond market expects for the five years starting five years from now | ${m.fwd.d} |`);
+  if (m.be) out.push(`| 10-year breakeven inflation (FRED T10YIE) | ${m.be.v.toFixed(2)}% | inflation the bond market expects over the next 10 years | ${m.be.d} |`);
+  if (m.tp) out.push(`| 10-year term premium (Kim-Wright model, FRED THREEFYTP10) | ${m.tp.v.toFixed(2)}% | extra yield investors demand for holding long bonds | ${m.tp.d} |`);
+  if (m.bs) out.push(`| Fed balance sheet (H.4.1, FRED WALCL) | ${m.bs.text} | ${m.bs.trend ?? "everything the Fed owns"} | ${m.bs.d} |`);
   if (!out.length) return [];
   return [
     "",
@@ -348,7 +458,7 @@ function markdown(data) {
     const tilt = { lower: "lower risk than", in_line: "in line with", higher: "higher risk than" }[f.llm.scenario_tilt] ?? f.llm.scenario_tilt;
     lines.push(`- AI view, next 3 months (${fmtDate(f.llm.run_at, false)}): ${tilt} history for this risk band. Chance of a 10%+ S&P 500 fall within 63 trading days: ${f.llm.scenario_bear_pct + f.llm.scenario_crash_pct}%${hist != null ? `, against ${hist}% for such days since 1990` : ""}. An AI judgment limited to one 5-point step from that history.`);
   }
-  lines.push(...contextLines(data.context));
+  lines.push(...contextLines(data.context, data.contextOldest));
   if (data.macro?.macro_narrative) {
     lines.push("", `## Macro & Fiscal: what it adds up to (AI-written, ${fmtDate(data.macro.run_at, false)})`, "", String(data.macro.macro_narrative).replace(/\r\n/g, "\n").trim());
   }

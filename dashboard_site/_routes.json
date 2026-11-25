@@ -1,5 +1,5 @@
 {
   "version": 1,
-  "include": ["/", "/smart-money", "/smart-money/", "/macro", "/macro/", "/views", "/views/", "/latest.md"],
+  "include": ["/", "/smart-money", "/smart-money/", "/macro", "/macro/", "/views", "/views/", "/latest.md", "/sitemap.xml"],
   "exclude": []
 }
