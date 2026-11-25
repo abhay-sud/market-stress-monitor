@@ -4,6 +4,8 @@
 
 For the current reading as plain text (date, the six indicators with values and status, the stress gate, the drawdown risk band, the AI's 3-month view, financial-stress and funding context, and the latest narrative), fetch https://marketstress.org/latest.md. It refreshes within about 10 minutes of each new report. The full page at https://marketstress.org/ loads most of its charts with JavaScript; its footer carries the same one-line latest reading.
 
+A daily Atom (RSS) feed of the reading, one entry per weekday with the six indicators and the drawdown risk band, is at https://marketstress.org/feed.xml.
+
 A plain-English, illustrated explainer of the method (no live values) is at https://marketstress.org/how-it-works.
 
 ## What it measures

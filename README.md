@@ -21,7 +21,7 @@ the narrative, and never re-derives a number.
 ![MCP](https://img.shields.io/badge/MCP-server-111111?style=flat-square&logo=modelcontextprotocol&logoColor=white)
 ![Claude](https://img.shields.io/badge/Claude-D97757?style=flat-square&logo=claude&logoColor=white)
 
-**[Live dashboard →](https://marketstress.org/)** · free, no sign-up, updated daily<br>
+**[Live dashboard →](https://marketstress.org/)** · free, no sign-up, updated daily · [RSS feed](https://marketstress.org/feed.xml)<br>
 **[Get the alerts on your phone →](docs/run-your-own.md)** · fork, add two secrets, done<br>
 [How it works](#how-it-works) · [Evidence](#evidence-over-vibes) · [Rules](reference_docs/rules/crash-check-rules.md) · [Run it yourself](#run-it-yourself) · [Known gaps](BACKLOG.md)
 

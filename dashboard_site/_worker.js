@@ -6,8 +6,8 @@
 // the same reading as plain text at /latest.md. Browsers get the same page
 // as before; the client-side render replaces the inserted headline.
 //
-// Scope: _routes.json sends only "/", the tab pages (TAB_PAGES), "/sitemap.xml" and
-// "/latest.md" here; every other file
+// Scope: _routes.json sends only "/", the tab pages (TAB_PAGES), "/sitemap.xml",
+// "/feed.xml" (Atom) and "/latest.md" here; every other file
 // is served as a plain static asset. It lives in dashboard_site (the Pages
 // output folder) because the project has no root dir, so a functions/ folder
 // would have to sit at the repo root.
@@ -83,6 +83,7 @@ export default {
     const url = new URL(request.url);
     if (url.pathname === "/latest.md") return latestMarkdown(request, ctx);
     if (url.pathname === "/sitemap.xml") return sitemapXml(request, env, ctx);
+    if (url.pathname === "/feed.xml") return atomFeed(request, ctx);
     // "/views/" -> "/views": one URL per tab.
     if (url.pathname.length > 1 && url.pathname.endsWith("/") && TAB_PAGES[url.pathname.replace(/\/+$/, "")]) {
       return Response.redirect(`${url.origin}${url.pathname.replace(/\/+$/, "")}${url.search}`, 301);
@@ -203,6 +204,112 @@ async function sitemapXml(request, env, ctx) {
   return new Response(request.method === "HEAD" ? null : body, {
     headers: { "content-type": "application/xml; charset=utf-8", "cache-control": `public, max-age=${CACHE_SECONDS}` },
   });
+}
+
+// ---- Atom feed (2026-11-25) -------------------------------------------------
+//
+// /feed.xml: one entry per ET weekday (that day's last run), last FEED_DAYS
+// days. The entry id is the date, so the 10am, 6pm and report runs update
+// the same entry instead of adding new ones. Code-made numbers only: no AI
+// narrative. The title marks a change in confirmed RED count or risk band
+// against the previous weekday.
+const FEED_DAYS = 30;
+const FEED_CACHE_KEY = `${SITE}/__cache/feed-v1`;
+const FEED_FIELDS = "run_at,vix_value,vix_color,hy_spread_bps,hy_spread_color,sp_drawdown_pct,sp_drawdown_color,treasury_10y_pct,treasury_10y_color,sahm_rule_value,sahm_rule_color,fed_pivot_signal,fed_pivot_color,red_count,confirmed_red_count,confirmation_state,wave_authorized,dd_vix_band";
+const BAND_RANK = { LOW: 0, TRANSITIONING: 1, HIGH: 2, ALREADY_BREACHED: 3 };
+const BAND_SHORT = { ...DD_VIX_BAND_LABELS, ALREADY_BREACHED: "S&P 10%+ below its high" };
+
+async function atomFeed(request, ctx) {
+  if (request.method !== "GET" && request.method !== "HEAD") return new Response("Method not allowed", { status: 405 });
+  let xml = null;
+  try {
+    const cache = caches.default;
+    const hit = await cache.match(FEED_CACHE_KEY);
+    if (hit) xml = await hit.text();
+    else {
+      // ~3 runs a weekday plus Saturday's; 140 rows covers FEED_DAYS + 1 weekdays.
+      const rows = await supabase(`crash_checks?select=${FEED_FIELDS}&order=run_at.desc&limit=140`);
+      xml = feedXml(rows);
+      if (xml) ctx.waitUntil(cache.put(FEED_CACHE_KEY, new Response(xml, { headers: { "cache-control": `public, max-age=${CACHE_SECONDS}` } })));
+    }
+  } catch (e) { xml = null; }
+  if (!xml) {
+    return new Response("Feed temporarily unavailable.\n", { status: 503, headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "retry-after": "300" } });
+  }
+  return new Response(request.method === "HEAD" ? null : xml, {
+    headers: { "content-type": "application/atom+xml; charset=utf-8", "cache-control": `public, max-age=${CACHE_SECONDS}` },
+  });
+}
+
+// rows: newest first. Returns null if there is nothing to publish.
+function feedXml(rows) {
+  const days = [];
+  const seen = new Set();
+  for (const row of rows) {
+    const day = new Date(row.run_at).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+    const wd = new Date(`${day}T12:00:00Z`).getUTCDay();
+    if (wd === 0 || wd === 6 || seen.has(day)) continue;
+    seen.add(day);
+    days.push({ day, row });
+  }
+  if (!days.length) return null;
+  const entries = days.slice(0, FEED_DAYS).map((d, i) => feedEntry(d, days[i + 1] ?? null));
+  return `<?xml version="1.0" encoding="utf-8"?>\n<feed xmlns="http://www.w3.org/2005/Atom">\n`
+    + `  <title>Market Stress Monitor: daily reading</title>\n`
+    + `  <subtitle>Six US crash-risk indicators RED/AMBER/GREEN each weekday, from public data. Not investment advice.</subtitle>\n`
+    + `  <id>tag:marketstress.org,2026:feed</id>\n`
+    + `  <link rel="self" type="application/atom+xml" href="${SITE}/feed.xml"/>\n`
+    + `  <link rel="alternate" type="text/html" href="${SITE}/"/>\n`
+    + `  <updated>${new Date(days[0].row.run_at).toISOString()}</updated>\n`
+    + `  <author><name>Market Stress Monitor</name><uri>${SITE}/</uri></author>\n`
+    + `  <icon>${SITE}/icon-192.png</icon>\n`
+    + entries.join("")
+    + `</feed>\n`;
+}
+
+function bandKey(row) {
+  const { status, band } = ddVixReading(row);
+  return status === "ALREADY_BREACHED" ? "ALREADY_BREACHED" : band;
+}
+
+// Title, e.g. "Nov 25, 2026: 0 of 6 confirmed RED · drawdown risk High", with
+// "▲ … (was …)" on the part that changed since the previous weekday.
+function feedTitle(row, prev) {
+  const n = row.confirmed_red_count ?? 0;
+  const pn = prev ? prev.confirmed_red_count ?? 0 : n;
+  const arrow = (up) => (up ? "▲ " : "▼ ");
+  const pending = Math.max(0, (row.red_count ?? 0) - n);
+  const parts = [`${n !== pn ? arrow(n > pn) : ""}${n} of 6 confirmed RED${n !== pn ? ` (was ${pn})` : ""}${pending ? ` +${pending} pending` : ""}`];
+  const b = bandKey(row);
+  const pb = prev ? bandKey(prev) : b;
+  if (b) {
+    const changed = pb && pb !== b;
+    const label = b === "ALREADY_BREACHED" ? BAND_SHORT[b] : `drawdown risk ${BAND_SHORT[b] ?? b}`;
+    parts.push(`${changed ? arrow(BAND_RANK[b] > BAND_RANK[pb]) : ""}${label}${changed ? ` (was ${BAND_SHORT[pb] ?? pb})` : ""}`);
+  }
+  return `${fmtDate(row.run_at, false)}: ${parts.join(" · ")}`;
+}
+
+function feedEntry({ day, row }, prevDay) {
+  const { status, band } = ddVixReading(row);
+  const bandText = status === "ALREADY_BREACHED"
+    ? "Drawdown risk band: not scored, because the S&P 500 is already more than 10% below its high."
+    : band
+      ? `Drawdown risk band: ${DD_VIX_BAND_LABELS[band] ?? band}. Historically, ${DD_VIX_HIT_RATE[band] ?? "an unknown share"} of days in this band were followed by a 10%+ S&P 500 drawdown within about 21 trading days, against 12% on a typical day.`
+      : "";
+  const html = [
+    `<p>${escHtml(summarySentence({ row, full: null }).replace(/^Latest reading/, "Reading"))}</p>`,
+    bandText ? `<p>${escHtml(bandText)}</p>` : "",
+    `<p>As of ${escHtml(fmtDate(row.run_at, true))}. Full reading: <a href="${SITE}/">${SITE.replace("https://", "")}</a></p>`,
+    `<p><small>${escHtml(DISCLAIMER)}</small></p>`,
+  ].join("");
+  return `  <entry>\n`
+    + `    <title>${escHtml(feedTitle(row, prevDay?.row ?? null))}</title>\n`
+    + `    <id>tag:marketstress.org,${day}:reading</id>\n`
+    + `    <link rel="alternate" type="text/html" href="${SITE}/"/>\n`
+    + `    <updated>${new Date(row.run_at).toISOString()}</updated>\n`
+    + `    <content type="html">${escHtml(html)}</content>\n`
+    + `  </entry>\n`;
 }
 
 // Sets the Dataset's dateModified in the page's JSON-LD to the latest run.
