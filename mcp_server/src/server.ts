@@ -28,6 +28,7 @@ import { computeFundingPressureFlag } from "./lib/repoStress.js";
 import { resolveConditional, dueEvents } from "./lib/conditionalScenarios.js";
 import { priorStateOf, scenarioPriorFor, validateTiltReasons, SCENARIO_METHOD, type Tilt } from "./lib/scenarioTilt.js";
 import { classifyMoveLevel, MOVE_ELEVATED_ABOVE, MOVE_STRESS_ABOVE } from "./lib/bondVolatility.js";
+import { CHANGE_WINDOW_DAYS, GLOBAL_BOND_SERIES, summarizeGlobalBonds, type GlobalBondSeries, type Reading } from "./lib/globalBonds.js";
 import { loadRulesDoc, parseSections, findSection, tableOfContents } from "./lib/rulesDoc.js";
 import { readInstructionDoc } from "./lib/instructionsDoc.js";
 import { loadMonitoringConfig } from "./lib/monitoring.js";
@@ -620,13 +621,26 @@ server.registerTool(
   }),
 );
 
+// Latest + 4-weeks-ago reading per global-bonds series (lib/globalBonds.ts).
+async function computeGlobalBonds() {
+  const readings = await Promise.all(
+    GLOBAL_BOND_SERIES.map(async (id): Promise<[GlobalBondSeries, Reading | null]> => {
+      const latest = await getLatestDataPoint(id);
+      if (!latest) return [id, null];
+      const past = await getValueOnOrBefore(id, subtractDays(latest.observation_date, CHANGE_WINDOW_DAYS));
+      return [id, { value: latest.value, date: latest.observation_date, past }];
+    }),
+  );
+  return summarizeGlobalBonds(Object.fromEntries(readings));
+}
+
 server.registerTool(
   "get_context_indicators",
   {
     description:
       "Returns supplementary macro context — financial stress/conditions indices, breakeven " +
       "inflation, bank lending standards, reverse repo, 2s10s curve, jobless claims, credit-card " +
-      "delinquencies, WTI, retail sales, IG credit spread, SOFR, the SOFR−IORB repo-stress spread, MOVE bond volatility, broad dollar index, NFCI " +
+      "delinquencies, WTI, retail sales, IG credit spread, SOFR, the SOFR−IORB repo-stress spread, MOVE bond volatility, global_bonds (Japan and Germany 10-year vs the US, dollar/yen, euro/dollar), broad dollar index, NFCI " +
       "sub-indices, TIPS real yield, two external recession-probability models, small-cap " +
       "breadth, gold price (GLD), copper price, Bitcoin price, and sector capital-rotation. " +
       "Informational only — never part of the 6-indicator wave-authorization gate. gold_price is " +
@@ -702,7 +716,7 @@ server.registerTool(
       "regional_bank_stress (KRE vs SPY) — informational only, never part of the wave gate.",
   },
   withLogging("get_context_indicators", async () => {
-    const [stlfsi4, nfci, t10yie, drtscilm, rrpontsyd, dgs10, dgs2, dgs30, dgs3mo, icsa, ccsa, jtshir, drcclacbs, wti, retailSales, bamlIg, recentGradUnemployment, sofr, dtwexbgs, nfciRisk, nfciCredit, dfii10, recessionProbSmoothed, copper, ofrFsi, dff, debtToGdp, walcl, wtregen, termPremium10y, ticForeignTotal, ticForeignOfficial, gprIndex, taylorRuleGap, primaryBalance, netInterestBurden, govtSpendingShare, goldRealYieldCorrelation, stockBondCorrelation, debtDynamics, inflationTermPremium, auctionDemand, fedAbsorption, ratesDecomposition, iwmDelta, spyDelta, rspDelta, kreDelta, goldDelta, bitcoinDelta, sectorRotation, insiderActivity, marketPositioning, repoStressSpread, moveDelta, [latestCrashCheck]] =
+    const [stlfsi4, nfci, t10yie, drtscilm, rrpontsyd, dgs10, dgs2, dgs30, dgs3mo, icsa, ccsa, jtshir, drcclacbs, wti, retailSales, bamlIg, recentGradUnemployment, sofr, dtwexbgs, nfciRisk, nfciCredit, dfii10, recessionProbSmoothed, copper, ofrFsi, dff, debtToGdp, walcl, wtregen, termPremium10y, ticForeignTotal, ticForeignOfficial, gprIndex, taylorRuleGap, primaryBalance, netInterestBurden, govtSpendingShare, goldRealYieldCorrelation, stockBondCorrelation, debtDynamics, inflationTermPremium, auctionDemand, fedAbsorption, ratesDecomposition, iwmDelta, spyDelta, rspDelta, kreDelta, goldDelta, bitcoinDelta, sectorRotation, insiderActivity, marketPositioning, repoStressSpread, moveDelta, globalBonds, [latestCrashCheck]] =
       await Promise.all([
         getLatestDataPoint("STLFSI4"),
         getLatestDataPoint("NFCI"),
@@ -759,6 +773,7 @@ server.registerTool(
         computeMarketPositioning(),
         getLatestRepoStressSpread(),
         computeSeriesDelta("MOVE"),
+        computeGlobalBonds(),
         getRecentCrashChecks(1),
       ]);
     const divergenceFlags = latestCrashCheck?.divergence_flags ?? [];
@@ -984,6 +999,16 @@ server.registerTool(
                 "authorization.",
             }
           : null,
+      global_bonds: {
+        ...globalBonds,
+        signal:
+          "Japan (Ministry of Finance) and Germany (Bundesbank) 10-year yields beside the US 10-year, with 4-week " +
+          "changes, plus dollar/yen and euro/dollar (FRED). Japan is the largest foreign holder of Treasuries and a " +
+          "fast yen rise (usd_jpy change_4w_pct well below zero) is how the 2024 carry-trade unwind showed; the US-" +
+          "Germany gap tells a US-specific yield move (fiscal or term-premium worry) from a global one. Context only, " +
+          "with no measured edge: the 2003-2026 backtest found none of these improves on drawdown + VIX at 21 or 63 " +
+          "trading days, so never cite them as a crash signal or a reason to deploy.",
+      },
       broad_dollar_index: dtwexbgs && { ...dtwexbgs, signal: "rising = dollar strength, tightens global dollar-funding conditions and pressures EM/commodities" },
       nfci_risk_subindex: nfciRisk && { ...nfciRisk, signal: nfciRisk.value > 0 ? "elevated financial-sector volatility/funding risk" : "below-average" },
       nfci_credit_subindex: nfciCredit && { ...nfciCredit, signal: nfciCredit.value > 0 ? "tighter credit conditions specifically" : "looser than average" },

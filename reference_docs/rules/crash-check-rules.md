@@ -1043,6 +1043,30 @@ Four indicators are covered by this section:
   above 130.
 - Context only, per the rules above.
 
+### Global bonds (Japan, Germany, yen, euro)
+
+- **What:** Japan's 10-year government bond yield (Ministry of Finance
+  daily curve CSV, `JGB10`, from 1986-07), Germany's 10-year (Bundesbank
+  term-structure yield on Federal securities, `BUND10`, from 1997-08),
+  dollar/yen (`DEXJPUS`) and euro/dollar (`DEXUSEU`) from FRED's H.10.
+  Added 2026-11-25. Ingested by `ingestion/src/sources/globalRates.ts`
+  (optional source) and `fred.ts`; backfill with `--only=global`.
+- **Why these:** Japan is the largest foreign holder of Treasuries, so
+  rising Japanese yields can pull that money home, and a fast yen rise is
+  how the August 2024 carry-trade unwind showed. Germany separates a
+  US-only move in yields (fiscal or term-premium worry) from a global one.
+- **Where:** the Macro tab's Global bonds card (US / Germany / Japan
+  10-year over 12 months, MOVE, the US-minus-Germany gap and both currency
+  pairs with 4-week changes) and `get_context_indicators.global_bonds`
+  (`mcp_server/src/lib/globalBonds.ts`; the dashboard copy is
+  `renderGlobalBonds` in `dashboard_site/index.html`; change them
+  together). The "moved together" label (gap changed under 10bp in 4
+  weeks) is a reading aid, not a tested threshold.
+- **Context only, tested:** see "Bond-market and yen stress as a Stress-tab
+  input (M1)" under "Investigated and rejected". None of these counts
+  toward `red_count`, the stress gate or waves, and none should be cited
+  as a crash signal.
+
 ### Treasury auction quality (10Y/30Y)
 
 - **Where:** each 10Y and 30Y entry in `get_context_indicators`'
@@ -1197,6 +1221,30 @@ file was before being trusted:
   days**, which is within noise. A flag would only describe bonds moving
   while equities don't, not warn of anything. Don't re-propose it without
   new evidence; MOVE's level and deltas already show the spike.
+- **Bond-market and yen stress as a Stress-tab input (M1)** — rejected
+  2026-11-25. Rules fixed before the run in the research repo
+  (`market-hazard-model/experiments/m1_bond_stress/config.json`). Each
+  input was added to the drawdown + VIX logistic baseline, refit
+  walk-forward by calendar year (test days 2007-2026, target: a 10% S&P
+  drawdown within 21 or 63 trading days, from days below 10%), and judged
+  by the frozen exit criterion. A place on the Stress tab needed a pass at
+  both horizons. Nothing passed at either:
+
+  | input added | AUC gain, 21d [90%] | AUC gain, 63d [90%] |
+  |---|---|---|
+  | MOVE level + 20-day change | +0.003 [−0.024, +0.034] | −0.009 [−0.081, +0.062] |
+  | Japan 10-year, 20-day change | −0.001 [−0.016, +0.014] | +0.019 [−0.005, +0.046] |
+  | dollar/yen, 20-day % change | −0.009 [−0.027, +0.010] | −0.003 [−0.019, +0.012] |
+  | US-minus-Germany 10-year, 20-day change | −0.005 [−0.010, −0.000] | −0.002 [−0.017, +0.015] |
+  | all four | −0.007 [−0.037, +0.033] | −0.004 [−0.081, +0.075] |
+
+  At 21 days MOVE flagged episodes earlier (median 23 vs 8 days) but less
+  precisely (45% vs 48%), which fails the lead-time route. MOVE at 130+
+  with VIX under 20 happened on only 12 eligible days, two clusters, so
+  it can't be judged. In this history bond volatility mostly rose with or
+  after equity stress, not before it. These stay on Macro as context; the
+  2022 crisis was the one window where adding them helped
+  (leave-one-crisis-out AUC 0.75 → 0.82). Re-test before promoting any.
 - **Private-credit proxy: BDC ETF (BIZD) 30-day total return ≤ −10%**
   (build spec E6) — rejected 2026-11-13 after a backtest on Yahoo's
   adjusted closes (total return, distributions included), 2013-03 to

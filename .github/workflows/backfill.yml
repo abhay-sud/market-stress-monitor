@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       only:
-        description: "Leave empty for the full backfill, 'positioning' for just CFTC/FINRA/CBOE, or 'macro' for just copper futures + OFR stress index"
+        description: "Leave empty for the full backfill, 'positioning' for just CFTC/FINRA/CBOE, 'macro' for just copper futures + OFR stress index + Japan/Germany yields, or 'global' for Japan/Germany yields + dollar/yen + euro/dollar"
         required: false
         default: ""
 

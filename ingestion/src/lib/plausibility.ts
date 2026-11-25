@@ -73,6 +73,13 @@ const PLAUSIBILITY_RULES: Record<string, PlausibilityRule> = {
   SOFR_IORB_SPREAD_BPS: { kind: "absolute", min: -100, max: 1000 },
   // MOVE index: 2002-2026 closes ran 36.6 (Sept 2020) to 264.6 (Oct 2008).
   MOVE: { kind: "absolute", min: 15, max: 500 },
+  // Global bonds (2026-11-25). JGB10 1986-2026 ran -0.30% to 8.1%; BUND10
+  // 1997-2026 ran -0.85% to 5.8%. DEXJPUS 1971-2026 ran ~76 to 358;
+  // DEXUSEU 1999-2026 ran ~0.83 to 1.60.
+  JGB10: { kind: "absolute", min: -2, max: 15 },
+  BUND10: { kind: "absolute", min: -3, max: 15 },
+  DEXJPUS: { kind: "absolute", min: 50, max: 400 },
+  DEXUSEU: { kind: "absolute", min: 0.5, max: 2.5 },
 };
 
 export interface PlausibilityResult {

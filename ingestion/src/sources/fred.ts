@@ -93,6 +93,11 @@ const FRED_SERIES: { id: string; unit: string }[] = [
                                           // leg of SOFR_IORB_SPREAD_BPS — see buildSofrPolicySpread.
   { id: "DTWEXBGS", unit: "index" },     // Nominal Broad U.S. Dollar Index (Fed H.10, 26-currency
                                           // basket) — the "global transmission: dollar" leg.
+  // Added 2026-11-25 for the Macro "Global bonds" card, beside the Japan and
+  // Germany 10-year yields (sources/globalRates.ts). Context only: the M1
+  // backtest found a fast yen move adds nothing to drawdown + VIX.
+  { id: "DEXJPUS", unit: "yen_per_usd" }, // Fed H.10 noon NY buying rate, daily from 1971.
+  { id: "DEXUSEU", unit: "usd_per_eur" }, // Fed H.10, daily from 1999.
   { id: "NFCIRISK", unit: "index" },     // Chicago Fed NFCI Risk Subindex — financial-sector
                                           // volatility/funding risk, a narrower cut of the
                                           // composite NFCI already tracked above.
@@ -661,6 +666,23 @@ async function fetchFredHistory(seriesId: string, apiKey: string, observationSta
 
   const body = (await res.json()) as FredResponse;
   return (body.observations ?? []).filter((o) => o.value !== ".");
+}
+
+/** Full history of a few FRED_SERIES entries, for a targeted backfill (backfill.ts --only=global). */
+export async function fetchFredSeriesBackfill(ids: string[]): Promise<DataPoint[]> {
+  const apiKey = process.env.FRED_API_KEY;
+  if (!apiKey) throw new Error("FRED_API_KEY is not set");
+  const points: DataPoint[] = [];
+  for (const id of ids) {
+    const series = FRED_SERIES.find((s) => s.id === id);
+    if (!series) throw new Error(`${id} is not in FRED_SERIES`);
+    const history = await fetchFredHistory(id, apiKey, BACKFILL_START_DATE);
+    for (const obs of history) {
+      points.push({ series_id: id, source: "FRED", source_series_code: id, observation_date: obs.date, value: Number(obs.value), unit: series.unit, raw_payload: obs });
+    }
+    console.log(`  FRED backfill: ${id} — ${history.length} observations`);
+  }
+  return points;
 }
 
 export async function fetchFredBackfill(): Promise<DataPoint[]> {

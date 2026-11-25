@@ -26,6 +26,7 @@ These have no traffic light and don't count toward the gate, but they cover fina
 - Financial-stress indexes: OFR Financial Stress Index (U.S. Treasury; includes other advanced and emerging economies), St. Louis Fed Financial Stress Index, Chicago Fed NFCI with its risk and credit subindices.
 - Funding and liquidity: the SOFR repo rate, overnight reverse repo, Fed balance-sheet net liquidity, the broad trade-weighted dollar.
 - Inflation expectations and term premium: the 5-year, 5-year forward inflation expectation and the 10-year breakeven (both from Treasury and TIPS yields via FRED, not swap rates) and the Kim-Wright 10-year term premium; the latest values are in /latest.md.
+- Global bonds: Japan and Germany 10-year government bond yields beside the US 10-year, MOVE bond volatility, dollar/yen and euro/dollar. Context only: tested 2003-2026, none improved on drawdown + VIX as a warning of a 10% S&P fall.
 - Credit and economy: investment-grade spread, bank lending standards, jobless claims, credit-card delinquencies, recession probabilities, market breadth, regional-bank stress.
 - Cross-indicator divergence flags (e.g. high-yield spread vs VIX, gold vs silver).
 

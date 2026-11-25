@@ -1,5 +1,6 @@
 import { writeDataPoints } from "./lib/supabase.js";
-import { fetchFredBackfill } from "./sources/fred.js";
+import { fetchFredBackfill, fetchFredSeriesBackfill } from "./sources/fred.js";
+import { fetchGlobalRatesBackfill } from "./sources/globalRates.js";
 import { fetchYahooBackfill, fetchYahooMoveBackfill, fetchYahooCopperBackfill } from "./sources/yahoo.js";
 import { fetchOfrFsiBackfill } from "./sources/ofr.js";
 import { fetchMassiveBackfill, partitionPrivatePoints } from "./sources/massive.js";
@@ -49,6 +50,7 @@ async function backfillMacro(): Promise<Awaited<ReturnType<typeof fetchOfrFsiBac
   for (const [label, fn] of [
     ["COMEX copper futures (Yahoo HG=F, 2000-present)", fetchYahooCopperBackfill],
     ["OFR Financial Stress Index (2000-present)", fetchOfrFsiBackfill],
+    ["Japan + Germany 10-year yields (MoF 1986+, Bundesbank 1997+)", fetchGlobalRatesBackfill],
   ] as const) {
     try {
       console.log(`Backfilling ${label}...`);
@@ -72,6 +74,25 @@ async function main() {
     console.log(`Writing ${positioningPoints.length} data points to Supabase...`);
     await writeDataPoints(positioningPoints);
     console.log("Positioning backfill complete.");
+    return;
+  }
+  // Global bonds (2026-11-25): Japan + Germany 10-year, dollar/yen, euro/dollar.
+  if (process.argv.includes("--only=global")) {
+    const points: Awaited<ReturnType<typeof fetchGlobalRatesBackfill>> = [];
+    for (const [label, fn] of [
+      ["Japan + Germany 10-year yields (MoF 1986+, Bundesbank 1997+)", fetchGlobalRatesBackfill],
+      ["Dollar/yen + euro/dollar (FRED)", () => fetchFredSeriesBackfill(["DEXJPUS", "DEXUSEU"])],
+    ] as const) {
+      try {
+        console.log(`Backfilling ${label}...`);
+        points.push(...(await fn()));
+      } catch (err) {
+        console.error(`${label} backfill failed, continuing without it: ${err instanceof Error ? err.message : err}`);
+      }
+    }
+    console.log(`Writing ${points.length} data points to Supabase...`);
+    await writeDataPoints(points);
+    console.log("Global bonds backfill complete.");
     return;
   }
   if (process.argv.includes("--only=macro")) {

@@ -115,6 +115,11 @@
     --seq-old:        #6da7ec;
     --seq-mid:        #2a78d6;
     --seq-now:        #104281;
+    /* Categorical slots 1-3 (dataviz reference palette, validated light +
+       dark): Global bonds card, US / Germany / Japan 10-year. */
+    --cat-1:          #2a78d6;
+    --cat-2:          #eb6834;
+    --cat-3:          #1baf7a;
   }
   :root[data-theme="dark"] {
       --surface-1:      #1a1a19;
@@ -140,6 +145,9 @@
       --seq-old:        #184f95;
       --seq-mid:        #2a78d6;
       --seq-now:        #86b6ef;
+      --cat-1:          #3987e5;
+      --cat-2:          #d95926;
+      --cat-3:          #199e70;
     }
   * { box-sizing: border-box; }
   body {
@@ -834,6 +842,7 @@
   .rd .curve-legend { margin:6px 0 10px; gap:12px; }
   .rd .curve-legend-item { font:var(--t3); }
   .stats { display:grid; grid-template-columns:1fr; }
+  .gb-note { margin:8px 0 0; font:var(--t3); color:var(--text-muted); }
   .stat { padding:9px 0; border-bottom:1px solid var(--hair); display:grid; grid-template-columns: 1fr auto; column-gap:10px; }
   .stat .k { font:var(--t3); color:var(--text-muted); } .stat .v { font:600 14px/1.2 var(--font-ui); text-align:right; }
   .stat small { grid-column:1/-1; font:var(--t3); color:var(--text-muted); margin-top:3px; }
@@ -1077,6 +1086,10 @@
           <div class="sh"><span class="lbl">Yield curve</span><span class="note">3M · 2Y · 10Y · 30Y</span><button class="info" popovertarget="i-yc" aria-label="About the yield curve">ⓘ</button></div>
           <div id="bondyields-wrap"><p class="loading">Loading…</p></div>
           <div id="ratesdecomp-wrap"></div>
+        </section>
+        <section class="rsec" id="section-globalbonds">
+          <div class="sh"><span class="lbl">Global bonds</span><span class="note">US · Germany · Japan 10Y, 12 months</span><button class="info" popovertarget="i-gb" aria-label="About global bonds">ⓘ</button></div>
+          <div id="globalbonds-wrap"><p class="loading">Loading…</p></div>
         </section>
       </aside>
     </div>
@@ -1573,6 +1586,32 @@ const CONTEXT_INFO = {
     format: (v) => `${v.toFixed(2)}%`,
     signal: () => "Read alongside overnight reverse repo — no single-direction band",
   },
+  move: {
+    label: "MOVE",
+    format: (v) => v.toFixed(0),
+    signal: (v) => (v > 160 ? "Above 160: bond-market stress level (2.5% of days since 2002)" : v > 130 ? "Above 130: elevated bond volatility (8% of days since 2002)" : "Below the 130 elevated line"),
+    notable: (v) => v > 130,
+  },
+  jgb10: {
+    label: "Japan 10Y",
+    format: (v) => `${v.toFixed(2)}%`,
+    signal: () => "Context only; see Global bonds",
+  },
+  bund10: {
+    label: "Germany 10Y",
+    format: (v) => `${v.toFixed(2)}%`,
+    signal: () => "Context only; see Global bonds",
+  },
+  dexjpus: {
+    label: "Dollar/yen",
+    format: (v) => v.toFixed(2),
+    signal: () => "Falling = yen strengthening",
+  },
+  dexuseu: {
+    label: "Euro/dollar",
+    format: (v) => v.toFixed(4),
+    signal: () => "Rising = euro strengthening",
+  },
   dtwexbgs: {
     label: "Broad Dollar Index",
     format: (v) => v.toFixed(2),
@@ -1708,6 +1747,7 @@ function estrellaMishkinRecessionProbability(spread10y3mo) {
 // than silently disappearing.
 const CONTEXT_GROUPS = [
   { title: "Rates, inflation & dollar", cadence: "market prices, daily", keys: ["spread2s10s", "dgs30", "dfii10", "t10yie", "threefytp10", "dff", "sofr", "dtwexbgs"] },
+  { title: "Global bonds & currencies", cadence: "market prices, daily", keys: ["move", "bund10", "jgb10", "dexjpus", "dexuseu"] },
   { title: "Credit & financial conditions", cadence: "daily to quarterly", keys: ["ofrFsi", "stlfsi4", "nfci", "nfcirisk", "nfcicredit", "bamlc0a0cm", "regionalBankStress", "drtscilm"] },
   { title: "Liquidity", cadence: "weekly to daily", keys: ["netLiquidity", "walcl", "rrpontsyd"] },
   { title: "Cross-asset & breadth", cadence: "market prices, 7-day / 180-day windows", keys: ["smallCapBreadth", "equalWeightBreadth", "stockBondCorrelation", "gold", "bitcoin", "dcoilwtico", "copperFut"] },
@@ -1741,6 +1781,11 @@ function renderContextIndicators(latest) {
     dgs30: latest.DGS30,
     sofr: latest.SOFR,
     dtwexbgs: latest.DTWEXBGS,
+    move: latest.MOVE,
+    jgb10: latest.JGB10,
+    bund10: latest.BUND10,
+    dexjpus: latest.DEXJPUS,
+    dexuseu: latest.DEXUSEU,
     nfcirisk: latest.NFCIRISK,
     nfcicredit: latest.NFCICREDIT,
     dfii10: latest.DFII10,
@@ -1985,6 +2030,114 @@ function drawYieldCurveChart(wrap, snapshots) {
     MACRO.spreadNow = spreadNow;
     renderMacroVerdict();
   }
+}
+
+// Global bonds (2026-11-25): US / Germany / Japan 10-year over 12 months,
+// plus MOVE, the US-Germany gap and dollar/yen + euro/dollar with 4-week
+// changes. Mirrors mcp_server/src/lib/globalBonds.ts (28-day window, 10bp
+// "moved together" line); change both together. Context only: the M1
+// backtest found no edge over drawdown + VIX (see the i-gb popover).
+const GLOBAL_BOND_LINES = [
+  { id: "DGS10", label: "US", color: "var(--cat-1)" },
+  { id: "BUND10", label: "Germany", color: "var(--cat-2)" },
+  { id: "JGB10", label: "Japan", color: "var(--cat-3)" },
+];
+async function renderGlobalBonds() {
+  const wrap = document.getElementById("globalbonds-wrap");
+  try {
+    const cutoff = new Date();
+    cutoff.setUTCDate(cutoff.getUTCDate() - 372);
+    const cutoffStr = cutoff.toISOString().slice(0, 10);
+    const ids = [...GLOBAL_BOND_LINES.map((l) => l.id), "MOVE", "DEXJPUS", "DEXUSEU"];
+    const rows = await fetchAllFromSupabase(
+      `data_points?select=series_id,observation_date,value&series_id=in.(${ids.join(",")})&observation_date=gte.${cutoffStr}&order=observation_date.asc,series_id.asc`,
+    );
+    const by = new Map(ids.map((id) => [id, []]));
+    for (const r of rows) by.get(r.series_id)?.push({ date: r.observation_date, value: r.value });
+    if (GLOBAL_BOND_LINES.some((l) => by.get(l.id).length < 2)) {
+      wrap.innerHTML = '<p class="loading">No history yet for these series (the backfill has not run).</p>';
+      return;
+    }
+    const shift = (iso, days) => { const d = new Date(`${iso}T00:00:00Z`); d.setUTCDate(d.getUTCDate() - days); return d.toISOString().slice(0, 10); };
+    const reading = (id) => {
+      const s = by.get(id);
+      if (!s.length) return null;
+      const last = s[s.length - 1];
+      return { value: last.value, date: last.date, past: snapshotValueOnOrBefore(s, shift(last.date, 28)) };
+    };
+    drawGlobalBondsChart(wrap, by);
+    const us = reading("DGS10"), de = reading("BUND10"), jp = reading("JGB10"), mv = reading("MOVE"), yen = reading("DEXJPUS"), eur = reading("DEXUSEU");
+    const pctTxt = (r) => (r && r.past ? `${sgn((r.value / r.past - 1) * 100, 1)}% in 4 weeks` : "");
+    const cards = [];
+    if (mv) cards.push({ k: "Bond volatility (MOVE)", v: mv.value.toFixed(0), d: `${mv.past != null ? `${sgn(mv.value - mv.past, 0)} in 4 weeks · ` : ""}${mv.value > 160 ? "stress level (above 160)" : mv.value > 130 ? "elevated (above 130)" : "normal (130 or below)"}` });
+    if (us && de) {
+      const gap = us.value - de.value;
+      const ch = us.past != null && de.past != null ? Math.round((gap - (us.past - de.past)) * 100) : null;
+      const how = ch == null ? "" : Math.abs(ch) < 10 ? " · moved together" : ch > 0 ? " · US yields up relative to Germany" : " · US yields down relative to Germany";
+      cards.push({ k: "US minus Germany 10Y", v: `${gap.toFixed(2)} pts`, d: `${ch == null ? "" : `${sgn(ch, 0)}bp in 4 weeks`}${how}` });
+    }
+    if (jp) cards.push({ k: "Japan 10Y", v: `${jp.value.toFixed(2)}%`, d: jp.past != null ? `${sgn(Math.round((jp.value - jp.past) * 100), 0)}bp in 4 weeks` : "" });
+    if (yen) {
+      const ch = yen.past ? (yen.value / yen.past - 1) * 100 : null;
+      cards.push({ k: "Dollar/yen", v: yen.value.toFixed(1), d: ch == null ? "" : `${pctTxt(yen)} · yen ${ch < 0 ? "stronger" : "weaker"}` });
+    }
+    if (eur) cards.push({ k: "Euro/dollar", v: eur.value.toFixed(3), d: pctTxt(eur) });
+    wrap.insertAdjacentHTML("beforeend", `<div class="stats">${cards.map((c) => `<div class="stat"><span class="k">${c.k}</span><span class="v">${c.v}</span>${c.d ? `<small>${c.d}</small>` : ""}</div>`).join("")}</div>
+      <p class="gb-note">Context only. Tested 2003–2026, none of these improved on drawdown + VIX as a warning of a 10% fall.</p>`);
+  } catch (err) {
+    wrap.innerHTML = `<p class="loading">Failed to load global bonds: ${err.message}</p>`;
+  }
+}
+
+function drawGlobalBondsChart(wrap, by) {
+  const W = 320, H = 190, padL = 34, padR = 70, padT = 10, padB = 22;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const series = GLOBAL_BOND_LINES.map((l) => ({ ...l, pts: by.get(l.id) }));
+  const dates = [...new Set(series.flatMap((s) => s.pts.map((p) => p.date)))].sort();
+  const t0 = Date.parse(dates[0]), t1 = Date.parse(dates[dates.length - 1]);
+  const all = series.flatMap((s) => s.pts.map((p) => p.value));
+  const minV = Math.floor(Math.min(...all) * 2) / 2 - 0.25, maxV = Math.ceil(Math.max(...all) * 2) / 2 + 0.25;
+  const x = (iso) => padL + ((Date.parse(iso) - t0) / Math.max(1, t1 - t0)) * plotW;
+  const y = (v) => padT + (1 - (v - minV) / (maxV - minV)) * plotH;
+  const step = maxV - minV > 4 ? 1 : 0.5;
+  let grid = "";
+  for (let v = Math.ceil(minV / step) * step; v <= maxV + 1e-9; v += step) {
+    grid += `<line class="chart-grid-line" x1="${padL}" x2="${W - padR}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" /><text class="axis-label" x="${padL - 8}" y="${(y(v) + 3.5).toFixed(1)}" text-anchor="end">${v.toFixed(1)}%</text>`;
+  }
+  const months = [];
+  for (const d of dates) { const m = d.slice(0, 7); if (!months.length || months[months.length - 1].m !== m) months.push({ m, d }); }
+  const xl = months.filter((_, i) => i % 3 === 1).map(({ d }) => `<text class="axis-label" x="${x(d).toFixed(1)}" y="${H - 6}" text-anchor="middle">${new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", timeZone: "UTC" })}</text>`).join("");
+  // End labels in text ink beside a coloured dot, nudged apart so they never overlap.
+  const ends = series.map((s) => ({ s, last: s.pts[s.pts.length - 1] })).map((e) => ({ ...e, ly: y(e.last.value) })).sort((a, b) => a.ly - b.ly);
+  for (let i = 1; i < ends.length; i++) if (ends[i].ly - ends[i - 1].ly < 12) ends[i].ly = ends[i - 1].ly + 12;
+  const lines = series.map((s) => `<path class="chart-line" d="${s.pts.map((p, i) => `${i ? "L" : "M"} ${x(p.date).toFixed(1)} ${y(p.value).toFixed(1)}`).join(" ")}" style="stroke:${s.color};stroke-width:2px;fill:none;" />`).join("");
+  const labels = ends.map((e) => `<circle cx="${x(e.last.date).toFixed(1)}" cy="${y(e.last.value).toFixed(1)}" r="3" style="fill:${e.s.color};stroke:var(--surface-1);stroke-width:2px" /><text class="chart-endlabel" x="${(x(e.last.date) + 7).toFixed(1)}" y="${(e.ly + 4).toFixed(1)}">${e.s.label} ${e.last.value.toFixed(2)}</text>`).join("");
+  const dots = series.map((s, i) => `<circle class="chart-dot" id="gb-hdot-${i}" r="5" style="display:block;opacity:0;fill:${s.color};" />`).join("");
+  wrap.innerHTML = `<div class="chart-wrap"><svg class="chart-svg" id="gb-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="US, Germany and Japan 10-year government bond yields over the past 12 months">
+      ${grid}${xl}${lines}<line class="chart-crosshair" id="gb-guide" y1="${padT}" y2="${H - padB}" style="display:block;opacity:0;" />${dots}${labels}</svg>
+      <div class="chart-tooltip" id="gb-tooltip"></div></div>
+    <div class="curve-legend">${series.map((s) => `<div class="curve-legend-item"><span class="curve-legend-swatch" style="background:${s.color}"></span>${s.label} 10Y</div>`).join("")}</div>`;
+  const svg = document.getElementById("gb-svg"), tip = document.getElementById("gb-tooltip"), guide = document.getElementById("gb-guide");
+  svg.addEventListener("mousemove", (evt) => {
+    const rect = svg.getBoundingClientRect();
+    const px = ((evt.clientX - rect.left) / rect.width) * W;
+    let best = dates[0], bd = Infinity;
+    for (const d of dates) { const dd = Math.abs(x(d) - px); if (dd < bd) { bd = dd; best = d; } }
+    guide.setAttribute("x1", x(best).toFixed(1)); guide.setAttribute("x2", x(best).toFixed(1)); guide.style.opacity = 1;
+    let rowsHtml = "";
+    series.forEach((s, i) => {
+      const v = snapshotValueOnOrBefore(s.pts, best), dot = document.getElementById(`gb-hdot-${i}`);
+      if (v == null) { dot.style.opacity = 0; return; }
+      dot.setAttribute("cx", x(best).toFixed(1)); dot.setAttribute("cy", y(v).toFixed(1)); dot.style.opacity = 1;
+      rowsHtml += `<div style="display:flex;justify-content:space-between;gap:14px;"><span><span class="curve-legend-swatch" style="display:inline-block;vertical-align:middle;margin-right:6px;background:${s.color}"></span>${s.label}</span><b>${v.toFixed(2)}%</b></div>`;
+    });
+    tip.innerHTML = `<div style="color:var(--text-muted);margin-bottom:4px;">${fmtMd(best)}, ${best.slice(0, 4)}</div>${rowsHtml}`;
+    tip.style.left = `${(x(best) / W) * 100}%`; tip.style.top = `${((padT - 6) / H) * 100}%`; tip.style.transform = "translate(-50%, -100%)"; tip.style.display = "block";
+  });
+  svg.addEventListener("mouseleave", () => {
+    guide.style.opacity = 0; tip.style.display = "none";
+    series.forEach((_, i) => { document.getElementById(`gb-hdot-${i}`).style.opacity = 0; });
+  });
 }
 
 // Fiscal Dominance Regime Checklist -- mirrors mcp_server/src/lib/
@@ -3054,6 +3207,9 @@ function renderFiscalLedger(cards) {
 const MACRO_FRESH = [
   ["Treasury yields, TIPS, term premium", "Daily · FRED, Treasury fills the yields' lag", ["DGS10", "THREEFYTP10"], "day", 7],
   ["Dollar index", "Weekly release of daily values · Federal Reserve", ["DTWEXBGS"], "day", 12],
+  ["Dollar/yen · euro/dollar", "Weekly release of daily values · Federal Reserve", ["DEXJPUS", "DEXUSEU"], "day", 12],
+  ["Japan · Germany 10-year", "Daily · Japan Ministry of Finance, Bundesbank", ["JGB10", "BUND10"], "day", 7],
+  ["Bond volatility (MOVE)", "Daily · ICE BofA MOVE close", ["MOVE"], "day", 7],
   ["Fed balance sheet · reverse repo", "Weekly · daily", ["WALCL", "RRPONTSYD"], "day", 10],
   ["OFR stress index", "Daily · US Treasury OFR", ["OFR_FSI"], "day", 7],
   ["Financial conditions (NFCI, stress index)", "Weekly", ["NFCI", "STLFSI4"], "day", 14],
@@ -3155,6 +3311,11 @@ const CTX_COPY = {
   threefytp10: ["10Y term premium", "Kim-Wright model", "An estimate of the extra yield investors demand for tying money up in a 10-year bond instead of rolling over short-term bills.", "Rising means investors want more compensation for long-term risks such as inflation or heavy government borrowing. Its median since 1990 is about 0.74%.", "Flagged above 1.5%."],
   dff: ["Effective fed funds", "", "The overnight interest rate banks charge each other, which the Fed sets its target for.", "The anchor for every other interest rate. It only moves when the Fed changes policy.", ""],
   sofr: ["SOFR", "repo rate", "The overnight cost of borrowing cash with Treasuries as collateral (the \"repo\" market).", "Normally sits right next to the fed funds rate. A spike above it signals a cash shortage in the financial system's plumbing, as in September 2019.", ""],
+  move: ["MOVE", "bond volatility", "The ICE BofA MOVE index: how much movement options traders expect in Treasury yields over the next month. The bond market's version of the VIX.", "It ran about 40 to 260 since 2002 (the top in October 2008). It rises when the path of rates or inflation becomes uncertain, as in 2022–23.", "Flagged above 130 (8% of days since 2002). Not a tested warning: see Global bonds."],
+  jgb10: ["Japan 10Y", "Ministry of Finance", "The yield on Japan's 10-year government bond.", "Japan is the largest foreign holder of US Treasuries. Higher yields at home give Japanese investors a reason to bring money back, which can push US yields up.", ""],
+  bund10: ["Germany 10Y", "Bundesbank", "The yield on Germany's 10-year government bond, the euro area's benchmark.", "Compare it with the US 10-year: if US yields rise and Germany's don't, the move is about the US (its debt, inflation or the Fed), not the world.", ""],
+  dexjpus: ["Dollar/yen", "yen per dollar", "How many yen one dollar buys (Federal Reserve, noon in New York).", "A fast fall means the yen is strengthening. That squeezes trades funded by borrowing cheaply in yen, as in the August 2024 sell-off.", ""],
+  dexuseu: ["Euro/dollar", "dollars per euro", "How many dollars one euro buys (Federal Reserve, noon in New York).", "A rising euro means a weaker dollar against Europe's currency.", ""],
   dtwexbgs: ["Broad dollar index", "", "The dollar's value against a basket of the US's major trading partners' currencies (Federal Reserve).", "A rising dollar tightens financial conditions worldwide: dollar debts get more expensive to repay and US exports get pricier.", ""],
   ofrFsi: ["OFR stress index", "daily · US Treasury OFR", "The Office of Financial Research's daily stress score, combining 33 market measures (credit spreads, stock valuations, funding costs, demand for safe assets, volatility) across the US and other markets.", "Zero is average. Above zero means more financial stress than normal; it peaked near 29 in late 2008. Updates daily, so it moves before the two weekly indexes below.", "Flagged above zero."],
   stlfsi4: ["Financial stress index", "St. Louis Fed", "A single score combining 18 market measures (interest rates, spreads, volatility).", "Zero is average. Above zero means more financial stress than normal; it spiked far above zero in 2008 and March 2020.", "Flagged above zero."],
@@ -4632,6 +4793,7 @@ setupContextToggle();
 // lives in "stressmonitor").
 const SECTION_TAB = {
   "section-bondyields": "macro",
+  "section-globalbonds": "macro",
   "section-macro-nar": "macro",
   "section-fiscaldominance": "macro",
   "section-context": "macro",
@@ -4756,6 +4918,7 @@ document.getElementById("pop-layer").innerHTML = [
     + "<div class='sect'>Colours</div><p>Green = up or money in, red = down or money out. Deeper shading = bigger move. Direction only, not a buy/sell call.</p>", true),
   popHtml("i-fd", "Fiscal dominance checklist", "<p>Real-data checks for whether Fed policy is actually <b>constrained</b> by the debt burden, not just whether debt or rates happen to be high. Each check shows its own prior-period comparison: read the direction, not one reading.</p><p>None of these is a verdict on its own. <b>Don't average them into a score.</b> Structural and slow-moving: reassess roughly quarterly. Full method in the rules doc.</p>"),
   popHtml("i-yc", "Yield curve", "<p>Three dates overlaid (6 months ago, 3 months ago, today), so a steepening, flattening or inversion shows up as a change of shape.</p><p>A steepening can mean easing expectations, rising inflation expectations or a rising term premium: very different stories. The 2-year is the cleanest read on policy expectations. The 10-year is split two approximate ways: real yield vs inflation (TIPS liquidity and indexation lag mean they don't sum exactly), and expected short-rate path vs term premium (Kim-Wright model). A bear steepening led by term premium is the fiscal-risk pattern; led by breakevens, an inflation story; a bull steepening led by the 2-year, an easing story.</p>"),
+  popHtml("i-gb", "Global bonds", "<p>The US 10-year yield beside Germany's (Bundesbank) and Japan's (Ministry of Finance), plus MOVE bond volatility and the dollar against the yen and the euro. Changes are over 4 weeks.</p><p><b>Why these.</b> Japan is the largest foreign holder of US Treasuries: rising Japanese yields can pull that money home, and a fast yen rise is how the August 2024 carry-trade unwind showed up. Germany separates a US-only move in yields (worry about US debt or the term premium) from a global one. MOVE is the bond market's VIX.</p><p class='fine'><b>Context only, no measured edge.</b> Tested 2003–2026 against what drawdown + VIX already say: none of MOVE, the Japan 10-year, the yen or the US-Germany gap improved the warning of a 10% S&amp;P fall at 21 or 63 trading days, so none counts toward the stress panel. MOVE above 130 is marked notable from its base rate (8% of days), not from a test.</p>"),
   popHtml("i-ctx", "Contextual indicators", "<p>Background readings across rates, credit, liquidity, markets, jobs and the debt. Each shows its latest available value, so dates differ (see Data freshness).</p><p>A blue tick marks a reading flagged <b>notable</b> by its own rule (for example the 30Y above 5.0%). Click ⓘ on any row for what it means and its typical range. None of these count toward the gate.</p><p>Use <b>Hide</b> to collapse the section; the notable ones stay listed in one line.</p>"),
 ].join("");
 
@@ -5223,7 +5386,7 @@ async function main() {
     // Isolated try/catch: a data_points fetch failure shouldn't take down
     // date navigation or the trend charts below, which depend on nothing here.
     try {
-      const CONTEXT_SERIES = ["STLFSI4", "NFCI", "T10YIE", "DRTSCILM", "RRPONTSYD", "DGS10", "DGS2", "ICSA", "DRCCLACBS", "DCOILWTICO", "COPPER_FUT", "OFR_FSI", "RSAFS", "CCSA", "JTSHIR", "BAMLC0A0CM", "CGBD2024", "DGS30", "SOFR", "DTWEXBGS", "NFCIRISK", "NFCICREDIT", "DFII10", "RECPROUSM156N", "DGS3MO", "DFF", "DEBT_TOTAL_PUBLIC", "GDP", "WALCL", "WTREGEN", "THREEFYTP10", "TIC_FOREIGN_HOLDINGS_TOTAL", "TIC_FOREIGN_OFFICIAL_HOLDINGS", "GPR_INDEX"];
+      const CONTEXT_SERIES = ["STLFSI4", "NFCI", "T10YIE", "DRTSCILM", "RRPONTSYD", "DGS10", "DGS2", "ICSA", "DRCCLACBS", "DCOILWTICO", "COPPER_FUT", "OFR_FSI", "RSAFS", "CCSA", "JTSHIR", "BAMLC0A0CM", "CGBD2024", "DGS30", "SOFR", "DTWEXBGS", "NFCIRISK", "NFCICREDIT", "DFII10", "RECPROUSM156N", "DGS3MO", "DFF", "DEBT_TOTAL_PUBLIC", "GDP", "WALCL", "WTREGEN", "THREEFYTP10", "TIC_FOREIGN_HOLDINGS_TOTAL", "TIC_FOREIGN_OFFICIAL_HOLDINGS", "GPR_INDEX", "MOVE", "JGB10", "BUND10", "DEXJPUS", "DEXUSEU"];
       // One query per series, not a single combined "order by date, limit N"
       // query across all of them — a shared limit silently crowds out
       // low-frequency (quarterly) series like DRCCLACBS/DRTSCILM once enough
@@ -5372,6 +5535,7 @@ async function main() {
     // query shape needs history, not just latest-per-series) and of
     // everything below it.
     renderYieldCurveChart();
+    renderGlobalBonds();
     renderFiscalDominanceChecklist();
     renderRatesDecomposition();
     renderAnalystViews(ALL_ROWS[ALL_ROWS.length - 1]);

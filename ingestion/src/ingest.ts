@@ -3,6 +3,7 @@ import { checkPlausibility } from "./lib/plausibility.js";
 import { fetchFred } from "./sources/fred.js";
 import { fetchYahoo, fetchYahooMove, fetchYahooCopper } from "./sources/yahoo.js";
 import { fetchOfrFsi } from "./sources/ofr.js";
+import { fetchGlobalRates } from "./sources/globalRates.js";
 import { fetchEia } from "./sources/eia.js";
 import { fetchCboe } from "./sources/cboe.js";
 import { fetchCftc } from "./sources/cftc.js";
@@ -59,6 +60,8 @@ async function main() {
     // late IMF monthly as the displayed reading) and the daily OFR stress index.
     runSource("YahooCopper", false, fetchYahooCopper),
     runSource("OFR", false, fetchOfrFsi),
+    // Context-only: Japan (MoF) and Germany (Bundesbank) 10-year yields.
+    runSource("GlobalRates", false, fetchGlobalRates),
     runSource("EIA", true, fetchEia),
     // CBOE is best-effort, not required: it's supplementary sentiment data,
     // not one of the 6 canonical crash indicators. Don't fail the whole run

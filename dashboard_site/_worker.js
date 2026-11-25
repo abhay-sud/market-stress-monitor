@@ -22,7 +22,7 @@ const SUPABASE_URL = "https://jophlgbijfahmytkrjly.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_DAU2BkfrG_3-LU_fFKW1og_yVasDG6d";
 const SITE = "https://marketstress.org";
 const CACHE_SECONDS = 600;
-const CACHE_KEY = `${SITE}/__cache/latest-reading-v2`;
+const CACHE_KEY = `${SITE}/__cache/latest-reading-v3`;
 const FETCH_TIMEOUT_MS = 2000;
 
 const LATEST_FIELDS = "run_at,vix_value,vix_color,hy_spread_bps,hy_spread_color,sp_drawdown_pct,sp_drawdown_color,treasury_10y_pct,treasury_10y_color,sahm_rule_value,sahm_rule_color,fed_pivot_signal,fed_pivot_color,red_count,confirmed_red_count,confirmation_state,wave_authorized,warsh_classification,dd_vix_band,crash_probability_pct";
@@ -275,7 +275,7 @@ async function supabase(path) {
 // traffic light, not in the gate). Listed here so AI tools reading
 // /latest.md see that the site covers more than the six gate indicators.
 // Signal wording mirrors CONTEXT_INFO in index.html; change them together.
-const CONTEXT_SERIES = ["OFR_FSI", "STLFSI4", "NFCI", "SOFR", "IORB", "DTWEXBGS", "T5YIFR", "T10YIE", "THREEFYTP10", "WALCL"];
+const CONTEXT_SERIES = ["OFR_FSI", "STLFSI4", "NFCI", "SOFR", "IORB", "DTWEXBGS", "T5YIFR", "T10YIE", "THREEFYTP10", "WALCL", "MOVE", "JGB10", "BUND10", "DEXJPUS", "DGS10"];
 const CONTEXT_LOOKBACK_DAYS = 45;
 
 // Inflation expectations, term premium, the Fed balance sheet and the OFR
@@ -329,6 +329,11 @@ function contextLines(ctx, oldest) {
     out.push(`| SOFR overnight repo rate | ${v("SOFR").toFixed(2)}% | ${gap == null ? "repo-market funding cost" : `${gap >= 0 ? "+" : ""}${gap} bp vs the Fed's interest on reserves (${v("IORB").toFixed(2)}%); a sustained gap above it signals a cash squeeze`} | ${d("SOFR")} |`);
   }
   if (v("DTWEXBGS") != null) out.push(`| Broad trade-weighted US dollar index | ${v("DTWEXBGS").toFixed(2)} | a fast rise tightens conditions for foreign dollar borrowers | ${d("DTWEXBGS")} |`);
+  // Global bonds (2026-11-25; Macro tab card, context only, no tested edge).
+  if (v("MOVE") != null) out.push(`| MOVE index (ICE BofA, Treasury implied volatility: the bond market's VIX) | ${v("MOVE").toFixed(0)} | ${v("MOVE") > 160 ? "stress level (above 160)" : v("MOVE") > 130 ? "elevated (above 130)" : "normal (130 or below)"} | ${d("MOVE")} |`);
+  if (v("JGB10") != null) out.push(`| Japan 10-year government bond yield (Ministry of Finance) | ${v("JGB10").toFixed(2)}% | Japan is the largest foreign holder of US Treasuries | ${d("JGB10")} |`);
+  if (v("BUND10") != null) out.push(`| Germany 10-year government bond yield (Bundesbank) | ${v("BUND10").toFixed(2)}% | ${v("DGS10") != null ? `US 10-year minus Germany: ${(v("DGS10") - v("BUND10")).toFixed(2)} points` : "the euro area's benchmark"} | ${d("BUND10")} |`);
+  if (v("DEXJPUS") != null) out.push(`| Dollar/yen (Federal Reserve H.10) | ${v("DEXJPUS").toFixed(2)} | a fast fall (stronger yen) squeezes yen-funded carry trades | ${d("DEXJPUS")} |`);
   const m = macroFacts({ context: ctx, contextOldest: oldest });
   if (m.fwd) out.push(`| 5-year, 5-year forward inflation expectation (FRED T5YIFR, from Treasury and TIPS yields; not a swap rate) | ${m.fwd.v.toFixed(2)}% | average inflation the bond market expects for the five years starting five years from now | ${m.fwd.d} |`);
   if (m.be) out.push(`| 10-year breakeven inflation (FRED T10YIE) | ${m.be.v.toFixed(2)}% | inflation the bond market expects over the next 10 years | ${m.be.d} |`);
