@@ -3518,6 +3518,16 @@ const POSITIONING_MEASURES = [
       "Typical — mostly the basis trade", "Smaller basis-trade short than usual", "Unusually long"],
     brief: [null, null, null, null, null],
     up: "basis trade shrinking", down: "basis trade growing", flat: 1 },
+  // Added 2026-11-25: the crowding leg of the Macro tab's yen carry block,
+  // shown here as a percentile like the other futures rows. Not a stock-market
+  // measure, so out of the "Today" summary. M2 backtest: no edge over
+  // drawdown + VIX; context only.
+  { seriesId: "COT_JY_LEV_FUNDS_NET_PCT_OI", label: "Yen futures", name: "hedge funds' yen futures", kind: "cot_weekly",
+    what: "Hedge funds' net yen bet; very short means the yen carry trade is crowded", inSummary: false,
+    reads: ["Crowded short yen — a crowded carry trade; a fast yen rise can force a rush to unwind (as in July 2024)", "More short yen than usual — carry trade building",
+      "Typical yen positioning", "Less short yen than usual — little carry trade on", "Unusually long yen — carry trade largely unwound"],
+    brief: [null, null, null, null, null],
+    up: "covering yen shorts", down: "adding yen shorts", flat: 1 },
   { seriesId: "CBOE_EQUITY_PC_RATIO", label: "Equity put/call", name: "equity put/call", kind: "put_call_10d",
     what: "Puts bought per call on single stocks, 10-day average — mostly retail",
     reads: ["Complacent — heavy call buying", "Call-heavy — leaning optimistic", "Balanced — neither fear nor euphoria",
@@ -4326,9 +4336,12 @@ const POS_COPY = {
   COT_TY_LEV_FUNDS_NET_PCT_OI: { q: "Bond-market plumbing", tech: "Leveraged funds · 10Y Treasury futures", short: "Basis trade", lo: "bigger short", hi: "smaller short", grp: "plumb",
     what: "Leveraged funds' net position in 10-year Treasury futures. Mostly the \"basis trade\": buying bonds and shorting futures to earn a tiny spread with lots of borrowed money.",
     why: "Not a view on rates or stocks. It matters because a crowded basis trade can unwind all at once, as in the March 2020 \"dash for cash\"." },
+  COT_JY_LEV_FUNDS_NET_PCT_OI: { q: "Are hedge funds betting against the yen?", tech: "Hedge funds · yen futures", short: "Yen carry bets", lo: "crowded short yen", hi: "long yen", grp: "carry",
+    what: "Hedge funds' net position in Japanese yen futures. Very short means they borrow cheaply in yen to buy higher-yielding assets elsewhere: the yen carry trade.",
+    why: "A crowded carry trade unwinds fast when the yen jumps, forcing sales of everything it funded, as on 5 August 2024. The percentile here is against the last 5 years; the Macro tab's yen carry block uses a fixed line (−25% of open interest or shorter = crowded) with the rate gap and the yen's move. Tested 2012–2026: no edge over drawdown + VIX, so context only." },
 };
 const POS_BAND_WORD = ["Extreme low", "Low", "Typical", "High", "Extreme high"];
-const POS_GROUPS = [["pro", "Professional money", "futures positions · CFTC, weekly"], ["ind", "Individual investors", "options and borrowing"], ["plumb", "Bond-market plumbing", "not a stock-market signal · shown for completeness"]];
+const POS_GROUPS = [["pro", "Professional money", "futures positions · CFTC, weekly"], ["ind", "Individual investors", "options and borrowing"], ["plumb", "Bond-market plumbing", "not a stock-market signal · shown for completeness"], ["carry", "Currency carry trade", "not a stock-market signal · full read on the <a href=\"/macro#section-globalbonds\">Macro tab</a>"]];
 const SMART = { measures: null, bySymbol: null };
 
 function renderMarketPositioning(measures) {
@@ -4357,7 +4370,7 @@ function renderMarketPositioning(measures) {
     pops += popHtml(pid, c.tech, `<p><b>What it tracks.</b> ${c.what}</p>${c.why ? `<p><b>Why it matters.</b> ${c.why}</p>` : ""}<p><b>Low end:</b> ${m.reads[0]}<br><b>High end:</b> ${m.reads[4]}</p>`);
     const [rv, ru] = raw(m);
     const win = m.windowLabel.startsWith("since") ? `since '${m.windowLabel.slice(-2)}` : m.windowLabel;
-    return `<div class="ps-row${c.grp === "plumb" ? " minor" : ""}" data-band="${m.band}">
+    return `<div class="ps-row${c.grp === "plumb" || c.grp === "carry" ? " minor" : ""}" data-band="${m.band}">
       <div class="q"><b>${c.q}</b> ${ib(pid, c.tech)}<small>${c.tech}</small></div>
       <div class="spec"><div class="bar" role="img" aria-label="${m.percentile}th percentile, from ${c.lo} to ${c.hi}"><i style="left:${m.percentile}%"></i></div><div class="ends"><span>← ${c.lo}</span><span>${c.hi} →</span></div></div>
       <div class="pct">${m.percentile}<small>pct · ${win}</small></div>
@@ -4949,7 +4962,7 @@ setupTabs();
 document.getElementById("pop-layer").innerHTML = [
   popHtml("i-gate", "Stress gate", "<p>The stress gate is met when <b>3 of the 6</b> gate indicators are <b>confirmed RED</b>, meaning held across distinct dates, not one reading. The drawdown risk band and the AI view never count toward it.</p><p>It shows how broad the stress is. Since November 2026 it is information only: backtests over 1962&ndash;2026 found that requiring it before buying in a crash blocked purchases that later gained.</p>"),
   popHtml("i-llm", "AI view · next 3 months", "<p><b>Where it starts.</b> How days in today's drawdown risk band have played out over the next 3 months (63 trading days) since 1990: crash = a fall of 20% or more at some close, bear = 10–20%, bull = no 10% fall and at least 5% higher at the end, base = the rest. The headline figure is bear + crash: the chance of a 10%+ fall.</p><p><b>What the AI adds.</b> The AI is an LLM (Claude). It makes one choice: lower, in line with, or higher than that history, moving 5 points between the calm and the falling buckets, with up to three reasons that each cite a number. It looks only for what drawdown and VIX can't see, such as credit, fiscal stress or an upcoming event.</p><p><b>Why so constrained.</b> Free LLM estimates moved up to 19 points on the same data and ran above history. This keeps the view tied to the record. Each report's outcome is recorded after 3 months; the history and the step are never retuned from them.</p><p>Not part of the 3-of-6 gate. Reports before 17 Nov 2026 used an undefined split and aren't comparable.</p>"),
-  popHtml("i-pos", "Market positioning · how to read it", "<p>These six measures ask one question: <b>how crowded are the main bets in the market?</b></p><p><b>The scale.</b> Each measure is ranked against its own history (5 years for futures and put/call, since 1998 for margin debt). A percentile of 83 means today's reading is higher than 83% of past readings. The middle half (solid grey) is normal. The striped amber ends are the rarest 10% each way.</p><p><b>Why crowding matters.</b> A crowded bet is fragile: if everyone is already long, there's little fresh buying left and a lot of potential selling. That's why extremes are read <b>contrarian</b>: heavy fear has often come near bottoms, heavy greed near tops.</p><p><b>What it isn't.</b> Not a timing signal (not backtested), and never part of the 3-of-6 gate.</p><p class='fine'><b>Sources.</b> CFTC Commitments of Traders (weekly; Tuesday positions released Friday), CBOE put/call (daily), FINRA margin statistics (monthly, ~3–4 week lag).</p>", true),
+  popHtml("i-pos", "Market positioning · how to read it", "<p>These seven measures ask one question: <b>how crowded are the main bets in the market?</b></p><p><b>The scale.</b> Each measure is ranked against its own history (5 years for futures and put/call, since 1998 for margin debt). A percentile of 83 means today's reading is higher than 83% of past readings. The middle half (solid grey) is normal. The striped amber ends are the rarest 10% each way.</p><p><b>Why crowding matters.</b> A crowded bet is fragile: if everyone is already long, there's little fresh buying left and a lot of potential selling. That's why extremes are read <b>contrarian</b>: heavy fear has often come near bottoms, heavy greed near tops.</p><p><b>What it isn't.</b> Not a timing signal (not backtested), and never part of the 3-of-6 gate.</p><p class='fine'><b>Sources.</b> CFTC Commitments of Traders (weekly; Tuesday positions released Friday; S&amp;P 500, VIX, 10-year Treasury and yen futures), CBOE put/call (daily), FINRA margin statistics (monthly, ~3–4 week lag).</p>", true),
   popHtml("i-ext", "Positioning extremes", "<p>An extreme is a reading in the rarest 10% at either end of the measure's own history (≤10th or ≥90th percentile). High and Low are the next band in (≥75th / ≤25th).</p><p>Extremes read <b>contrarian</b>: when nearly everyone is on one side, there's little fresh money left to push further and a lot that could reverse. <b>Not backtested</b> as a timing signal.</p>"),
   popHtml("i-rot", "Sector capital rotation · how to read it",
     "<p>Is money actually moving into the sectors that are rising? Each sector is a State Street Select Sector SPDR fund. SPY (S&amp;P 500) and GLD (gold) are shown as benchmarks, with diamond markers.</p>"

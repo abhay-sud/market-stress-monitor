@@ -70,6 +70,18 @@ export const POSITIONING_MEASURES: MeasureDef[] = [
     highRead: "unusually long",
     lowRead: "unusually short -- mostly the cash-futures basis trade; crowding here was the 2020 'dash for cash' unwind risk",
   },
+  // Added 2026-11-25: yen carry crowding (also in get_context_indicators
+  // global_bonds.yen_carry with a fixed -25% line). M2 backtest: no edge over
+  // drawdown + VIX; context only.
+  {
+    key: "yen_leveraged_funds_net",
+    seriesId: "COT_JY_LEV_FUNDS_NET_PCT_OI",
+    label: "Yen futures: hedge funds net",
+    kind: "cot_weekly",
+    unit: "pct_open_interest",
+    highRead: "unusually long yen -- carry trade largely unwound",
+    lowRead: "crowded short yen -- a crowded carry trade; a fast yen rise can force a rush to unwind (as in July 2024)",
+  },
   {
     key: "equity_put_call_10d",
     seriesId: "CBOE_EQUITY_PC_RATIO",
