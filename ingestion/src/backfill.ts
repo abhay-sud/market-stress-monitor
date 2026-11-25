@@ -99,6 +99,14 @@ async function main() {
     console.log("Global bonds backfill complete.");
     return;
   }
+  // Junk-bond quality tiers (2026-11-25): FRED serves only ~3 years of ICE data.
+  if (process.argv.includes("--only=credit")) {
+    const points = await fetchFredSeriesBackfill(["BAMLH0A3HYC", "BAMLH0A1HYBB"]);
+    console.log(`Writing ${points.length} data points to Supabase...`);
+    await writeDataPoints(points);
+    console.log("Credit tiers backfill complete.");
+    return;
+  }
   if (process.argv.includes("--only=macro")) {
     const macroPoints = await backfillMacro();
     console.log(`Writing ${macroPoints.length} data points to Supabase...`);

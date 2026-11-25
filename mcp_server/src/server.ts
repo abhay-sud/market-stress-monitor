@@ -29,6 +29,7 @@ import { resolveConditional, dueEvents } from "./lib/conditionalScenarios.js";
 import { priorStateOf, scenarioPriorFor, validateTiltReasons, SCENARIO_METHOD, type Tilt } from "./lib/scenarioTilt.js";
 import { classifyMoveLevel, MOVE_ELEVATED_ABOVE, MOVE_STRESS_ABOVE } from "./lib/bondVolatility.js";
 import { CHANGE_WINDOW_DAYS, GLOBAL_BOND_SERIES, summarizeGlobalBonds, summarizeYenCarry, YEN_MOVE_WINDOW_DAYS, type GlobalBondSeries, type Reading } from "./lib/globalBonds.js";
+import { BB_SERIES, CCC_SERIES, GAP_WINDOW_YEARS, summarizeCreditQuality } from "./lib/creditQuality.js";
 import { loadRulesDoc, parseSections, findSection, tableOfContents } from "./lib/rulesDoc.js";
 import { readInstructionDoc } from "./lib/instructionsDoc.js";
 import { loadMonitoringConfig } from "./lib/monitoring.js";
@@ -735,7 +736,7 @@ server.registerTool(
       "regional_bank_stress (KRE vs SPY) — informational only, never part of the wave gate.",
   },
   withLogging("get_context_indicators", async () => {
-    const [stlfsi4, nfci, t10yie, drtscilm, rrpontsyd, dgs10, dgs2, dgs30, dgs3mo, icsa, ccsa, jtshir, drcclacbs, wti, retailSales, bamlIg, recentGradUnemployment, sofr, dtwexbgs, nfciRisk, nfciCredit, dfii10, recessionProbSmoothed, copper, ofrFsi, dff, debtToGdp, walcl, wtregen, termPremium10y, ticForeignTotal, ticForeignOfficial, gprIndex, taylorRuleGap, primaryBalance, netInterestBurden, govtSpendingShare, goldRealYieldCorrelation, stockBondCorrelation, debtDynamics, inflationTermPremium, auctionDemand, fedAbsorption, ratesDecomposition, iwmDelta, spyDelta, rspDelta, kreDelta, goldDelta, bitcoinDelta, sectorRotation, insiderActivity, marketPositioning, repoStressSpread, moveDelta, globalBonds, [latestCrashCheck]] =
+    const [stlfsi4, nfci, t10yie, drtscilm, rrpontsyd, dgs10, dgs2, dgs30, dgs3mo, icsa, ccsa, jtshir, drcclacbs, wti, retailSales, bamlIg, recentGradUnemployment, sofr, dtwexbgs, nfciRisk, nfciCredit, dfii10, recessionProbSmoothed, copper, ofrFsi, dff, debtToGdp, walcl, wtregen, termPremium10y, ticForeignTotal, ticForeignOfficial, gprIndex, taylorRuleGap, primaryBalance, netInterestBurden, govtSpendingShare, goldRealYieldCorrelation, stockBondCorrelation, debtDynamics, inflationTermPremium, auctionDemand, fedAbsorption, ratesDecomposition, iwmDelta, spyDelta, rspDelta, kreDelta, goldDelta, bitcoinDelta, sectorRotation, insiderActivity, marketPositioning, repoStressSpread, moveDelta, globalBonds, creditQuality, [latestCrashCheck]] =
       await Promise.all([
         getLatestDataPoint("STLFSI4"),
         getLatestDataPoint("NFCI"),
@@ -793,6 +794,9 @@ server.registerTool(
         getLatestRepoStressSpread(),
         computeSeriesDelta("MOVE"),
         computeGlobalBonds(),
+        // ~252 trading days a year; FRED serves only the last ~3 years of ICE data.
+        Promise.all([fetchSeriesHistory(CCC_SERIES, 260 * GAP_WINDOW_YEARS), fetchSeriesHistory(BB_SERIES, 260 * GAP_WINDOW_YEARS)])
+          .then(([ccc, bb]) => summarizeCreditQuality(ccc, bb)).catch(() => null),
         getRecentCrashChecks(1),
       ]);
     const divergenceFlags = latestCrashCheck?.divergence_flags ?? [];
@@ -1018,6 +1022,15 @@ server.registerTool(
                 "authorization.",
             }
           : null,
+      ccc_minus_bb_spread: creditQuality && {
+        ...creditQuality,
+        signal:
+          "ICE BofA option-adjusted spreads (FRED BAMLH0A3HYC, BAMLH0A1HYBB): how much more the weakest junk " +
+          "borrowers (CCC and lower) pay than the strongest (BB). A widening gap while BB stays calm means stress " +
+          "is concentrated in weak credit, not broad. Context only: FRED serves only ~3 years of ICE data, so this " +
+          "is untestable against past crashes; the percentile is over that window and the widest-10% wording is a " +
+          "display cutoff, not a threshold. Read alongside the HY spread and the AI single-name credit check.",
+      },
       global_bonds: {
         ...globalBonds,
         signal:

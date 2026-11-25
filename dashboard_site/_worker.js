@@ -22,7 +22,7 @@ const SUPABASE_URL = "https://jophlgbijfahmytkrjly.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_DAU2BkfrG_3-LU_fFKW1og_yVasDG6d";
 const SITE = "https://marketstress.org";
 const CACHE_SECONDS = 600;
-const CACHE_KEY = `${SITE}/__cache/latest-reading-v3`;
+const CACHE_KEY = `${SITE}/__cache/latest-reading-v4`;
 const FETCH_TIMEOUT_MS = 2000;
 
 const LATEST_FIELDS = "run_at,vix_value,vix_color,hy_spread_bps,hy_spread_color,sp_drawdown_pct,sp_drawdown_color,treasury_10y_pct,treasury_10y_color,sahm_rule_value,sahm_rule_color,fed_pivot_signal,fed_pivot_color,red_count,confirmed_red_count,confirmation_state,wave_authorized,warsh_classification,dd_vix_band,crash_probability_pct";
@@ -275,7 +275,7 @@ async function supabase(path) {
 // traffic light, not in the gate). Listed here so AI tools reading
 // /latest.md see that the site covers more than the six gate indicators.
 // Signal wording mirrors CONTEXT_INFO in index.html; change them together.
-const CONTEXT_SERIES = ["OFR_FSI", "STLFSI4", "NFCI", "SOFR", "IORB", "DTWEXBGS", "T5YIFR", "T10YIE", "THREEFYTP10", "WALCL", "MOVE", "JGB10", "BUND10", "DEXJPUS", "DGS10", "COT_JY_LEV_FUNDS_NET_PCT_OI"];
+const CONTEXT_SERIES = ["OFR_FSI", "STLFSI4", "NFCI", "SOFR", "IORB", "DTWEXBGS", "T5YIFR", "T10YIE", "THREEFYTP10", "WALCL", "MOVE", "JGB10", "BUND10", "DEXJPUS", "DGS10", "COT_JY_LEV_FUNDS_NET_PCT_OI", "BAMLH0A3HYC", "BAMLH0A1HYBB"];
 const CONTEXT_LOOKBACK_DAYS = 45;
 
 // Inflation expectations, term premium, the Fed balance sheet and the OFR
@@ -322,6 +322,7 @@ function contextLines(ctx, oldest) {
   const above = (x, hi, lo) => (x > 0 ? hi : lo);
   const out = [];
   if (v("OFR_FSI") != null) out.push(`| OFR Financial Stress Index (US Treasury; credit, funding, volatility, valuation, US and abroad) | ${v("OFR_FSI").toFixed(2)} | ${above(v("OFR_FSI"), "above-average stress", "below-average stress")} (0 = average) | ${d("OFR_FSI")} |`);
+  if (v("BAMLH0A3HYC") != null && v("BAMLH0A1HYBB") != null) out.push(`| Junk-bond quality gap: CCC & lower minus BB spread (ICE BofA) | ${(v("BAMLH0A3HYC") - v("BAMLH0A1HYBB")).toFixed(1)} pts | CCC ${v("BAMLH0A3HYC").toFixed(1)}% vs BB ${v("BAMLH0A1HYBB").toFixed(1)}%; the weakest borrowers' extra cost | ${d("BAMLH0A3HYC")} |`);
   if (v("STLFSI4") != null) out.push(`| St. Louis Fed Financial Stress Index | ${v("STLFSI4").toFixed(2)} | ${above(v("STLFSI4"), "above-average stress", "below-average stress")} (0 = average) | ${d("STLFSI4")} |`);
   if (v("NFCI") != null) out.push(`| Chicago Fed National Financial Conditions Index | ${v("NFCI").toFixed(2)} | ${above(v("NFCI"), "tighter than average", "looser than average")} (0 = average) | ${d("NFCI")} |`);
   if (v("SOFR") != null) {

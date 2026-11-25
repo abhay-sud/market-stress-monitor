@@ -98,6 +98,11 @@ const FRED_SERIES: { id: string; unit: string }[] = [
   // backtest found a fast yen move adds nothing to drawdown + VIX.
   { id: "DEXJPUS", unit: "yen_per_usd" }, // Fed H.10 noon NY buying rate, daily from 1971.
   { id: "DEXUSEU", unit: "usd_per_eur" }, // Fed H.10, daily from 1999.
+  // Added 2026-11-25: junk-bond quality tiers, for the CCC-minus-BB gap
+  // (mcp_server/src/lib/creditQuality.ts). Same ~3-year FRED limit as the HY
+  // and IG spreads below, so context only (untestable against past crashes).
+  { id: "BAMLH0A3HYC", unit: "percent" },  // ICE BofA CCC & Lower US High Yield OAS
+  { id: "BAMLH0A1HYBB", unit: "percent" }, // ICE BofA BB US High Yield OAS
   { id: "NFCIRISK", unit: "index" },     // Chicago Fed NFCI Risk Subindex — financial-sector
                                           // volatility/funding risk, a narrower cut of the
                                           // composite NFCI already tracked above.

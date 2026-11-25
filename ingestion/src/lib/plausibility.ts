@@ -47,6 +47,9 @@ const PLAUSIBILITY_RULES: Record<string, PlausibilityRule> = {
   BAMLH0A0HYM2: { kind: "absolute", min: 0, max: 30 },
   // IG OAS, raw percent — structurally much lower than HY; still generous.
   BAMLC0A0CM: { kind: "absolute", min: 0, max: 20 },
+  // CCC & lower OAS peaked ~44% in Dec 2008; BB ~14%. Raw percent.
+  BAMLH0A3HYC: { kind: "absolute", min: 0, max: 70 },
+  BAMLH0A1HYBB: { kind: "absolute", min: 0, max: 30 },
   // Treasury yields: 1981's Volcker-era peak was ~15.8% on the 10yr.
   DGS10: { kind: "absolute", min: 0, max: 20 },
   DGS2: { kind: "absolute", min: 0, max: 20 },

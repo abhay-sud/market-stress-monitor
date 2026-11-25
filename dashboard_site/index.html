@@ -1566,6 +1566,14 @@ const CONTEXT_INFO = {
     format: (v) => `${v.toFixed(1)}%`,
     signal: () => "Claims measure layoffs; this measures whether people are finding new jobs. A falling hires rate alongside flat claims can mask a hiring slowdown claims alone wouldn't show.",
   },
+  // CCC-minus-BB junk gap (2026-11-25). Mirrors mcp_server/src/lib/creditQuality.ts
+  // (3-year percentile, 28-day change, widest-10% flag); change both together.
+  cccBbGap: {
+    label: "CCC minus BB",
+    format: (v) => `${v.gap.toFixed(1)} pts`,
+    signal: (v) => `CCC ${v.ccc.toFixed(1)}% vs BB ${v.bb.toFixed(1)}%${v.ch == null ? "" : ` · ${v.ch >= 0 ? "+" : "−"}${Math.abs(v.ch).toFixed(1)} pts in 4 weeks`} · ${ordinal(v.pct)} percentile since ${fmtMonth(v.since)} (range ${v.min.toFixed(1)}–${v.max.toFixed(1)})`,
+    notable: (v) => v.pct >= 90,
+  },
   bamlc0a0cm: {
     label: "IG Credit Spread",
     format: (v) => `${Math.round(v * 100)}bps`,
@@ -1749,7 +1757,7 @@ function estrellaMishkinRecessionProbability(spread10y3mo) {
 const CONTEXT_GROUPS = [
   { title: "Rates, inflation & dollar", cadence: "market prices, daily", keys: ["spread2s10s", "dgs30", "dfii10", "t10yie", "threefytp10", "dff", "sofr", "dtwexbgs"] },
   { title: "Global bonds & currencies", cadence: "market prices, daily", keys: ["move", "bund10", "jgb10", "dexjpus", "dexuseu"] },
-  { title: "Credit & financial conditions", cadence: "daily to quarterly", keys: ["ofrFsi", "stlfsi4", "nfci", "nfcirisk", "nfcicredit", "bamlc0a0cm", "regionalBankStress", "drtscilm"] },
+  { title: "Credit & financial conditions", cadence: "daily to quarterly", keys: ["ofrFsi", "stlfsi4", "nfci", "nfcirisk", "nfcicredit", "bamlc0a0cm", "cccBbGap", "regionalBankStress", "drtscilm"] },
   { title: "Liquidity", cadence: "weekly to daily", keys: ["netLiquidity", "walcl", "rrpontsyd"] },
   { title: "Cross-asset & breadth", cadence: "market prices, 7-day / 180-day windows", keys: ["smallCapBreadth", "equalWeightBreadth", "stockBondCorrelation", "gold", "bitcoin", "dcoilwtico", "copperFut"] },
   { title: "Growth & labor", cadence: "weekly to monthly releases", keys: ["icsa", "ccsa", "jtshir", "rsafs", "cgbd2024", "drcclacbs", "recprousm156n", "nyFedRecessionProb"] },
@@ -1778,6 +1786,7 @@ function renderContextIndicators(latest) {
     ccsa: latest.CCSA,
     jtshir: latest.JTSHIR,
     bamlc0a0cm: latest.BAMLC0A0CM,
+    cccBbGap: latest.CCC_BB_GAP,
     cgbd2024: latest.CGBD2024,
     dgs30: latest.DGS30,
     sofr: latest.SOFR,
@@ -3262,6 +3271,7 @@ const MACRO_FRESH = [
   ["Bond volatility (MOVE)", "Daily · ICE BofA MOVE close", ["MOVE"], "day", 7],
   ["Fed balance sheet · reverse repo", "Weekly · daily", ["WALCL", "RRPONTSYD"], "day", 10],
   ["OFR stress index", "Daily · US Treasury OFR", ["OFR_FSI"], "day", 7],
+  ["Junk-bond tiers (CCC, BB)", "Daily · ICE BofA via FRED", ["BAMLH0A3HYC", "BAMLH0A1HYBB"], "day", 7],
   ["Financial conditions (NFCI, stress index)", "Weekly", ["NFCI", "STLFSI4"], "day", 14],
   ["Jobless claims", "Weekly", ["ICSA"], "day", 14],
   ["Treasury auctions", "After each auction · Treasury", ["AUCTION_10Y_BID_TO_COVER"], "day", 40],
@@ -3373,6 +3383,7 @@ const CTX_COPY = {
   nfcirisk: ["NFCI risk", "subindex", "The part of the Chicago Fed index that tracks volatility and funding risk in the financial sector.", "Zero is average; above zero means more risk than normal in markets and funding.", "Flagged above zero."],
   nfcicredit: ["NFCI credit", "subindex", "The part of the Chicago Fed index that tracks credit conditions: how easy it is for households and businesses to borrow.", "Zero is average; above zero means credit is harder to get than normal.", "Flagged above zero."],
   bamlc0a0cm: ["IG credit spread", "investment grade", "The extra yield that investment-grade (financially strong) companies pay to borrow, over Treasuries.", "Usually about 0.8–1.5 points (80–150bp). Widening here while junk-bond spreads hold steady is an early sign investors are getting pickier about credit.", ""],
+  cccBbGap: ["CCC minus BB", "junk-bond quality gap", "How much more the weakest junk-rated companies (CCC and lower) pay to borrow than the strongest junk-rated ones (BB), from ICE BofA spreads.", "The weakest borrowers usually crack first. A widening gap while BB stays calm means stress is concentrated in weak credit rather than spreading. FRED serves only about 3 years of this data, so it is ranked against that window and has not been tested against past crashes.", "Flagged in the widest 10% of the last 3 years. A display cutoff, not a tested threshold."],
   regionalBankStress: ["KRE vs SPY", "regional banks, 7d", "Regional bank stocks' return minus the S&amp;P 500's, over the past 7 days.", "Regional banks are where credit trouble often shows first (it did with Silicon Valley Bank in 2023). Not backtested as a signal.", "Flagged when regional banks are lagging (below zero)."],
   drtscilm: ["Bank lending standards", "net tightening, quarterly", "The share of banks tightening lending standards for business loans, minus the share easing them (Fed survey of loan officers, quarterly).", "Positive means more banks are making loans harder to get. Large positive readings came before past recessions.", "Flagged above zero (net tightening)."],
   netLiquidity: ["Net liquidity", "Fed BS − TGA − RRP", "The Fed's balance sheet minus the Treasury's cash account minus the Fed's reverse repo: a rough gauge of cash available in the financial system. Not an official Fed series.", "Falling means liquidity is draining, which has tended to weigh on stocks. Read the trend over several months, not one week.", ""],
@@ -5499,6 +5510,28 @@ async function main() {
       } catch (err) {
         // Isolated: no IWM/SPY history yet (e.g. before the first backfill)
         // shouldn't take down every other contextual indicator.
+      }
+
+      // CCC-minus-BB junk gap: needs ~3 years of both series for its
+      // percentile, so its own isolated fetch (mirrors creditQuality.ts).
+      try {
+        const since = new Date();
+        since.setUTCFullYear(since.getUTCFullYear() - 3);
+        const sinceStr = since.toISOString().slice(0, 10);
+        const rows = await fetchAllFromSupabase(`data_points?select=series_id,observation_date,value&series_id=in.(BAMLH0A3HYC,BAMLH0A1HYBB)&observation_date=gte.${sinceStr}&order=observation_date.asc,series_id.asc`);
+        const bb = new Map(rows.filter((r) => r.series_id === "BAMLH0A1HYBB").map((r) => [r.observation_date, r.value]));
+        const gap = rows.filter((r) => r.series_id === "BAMLH0A3HYC" && bb.has(r.observation_date)).map((r) => ({ date: r.observation_date, ccc: r.value, bb: bb.get(r.observation_date), v: r.value - bb.get(r.observation_date) }));
+        const last = gap.at(-1);
+        if (last) {
+          const back = new Date(`${last.date}T00:00:00Z`);
+          back.setUTCDate(back.getUTCDate() - 28);
+          const past = [...gap].reverse().find((p) => p.date <= back.toISOString().slice(0, 10));
+          const vals = gap.map((p) => p.v);
+          latestBySeriesId.CCC_BB_GAP = { gap: last.v, ccc: last.ccc, bb: last.bb, ch: past ? last.v - past.v : null,
+            pct: Math.round((vals.filter((x) => x <= last.v).length / vals.length) * 100), min: Math.min(...vals), max: Math.max(...vals), since: gap[0].date };
+        }
+      } catch (err) {
+        // Isolated, like the blocks around it.
       }
 
       // Gold (GLD) and Bitcoin (X:BTCUSD) 7-day % change — each its own
