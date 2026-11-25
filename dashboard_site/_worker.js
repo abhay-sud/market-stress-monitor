@@ -153,6 +153,16 @@ export default {
         rw = rw.on(`#tab-${id}`, { element(el) { if (id === page.tab) el.removeAttribute("hidden"); else el.setAttribute("hidden", ""); } });
       }
       if (views) rw = rw.on("#analysts-wrap", { element(el) { el.setInnerContent(views, { html: true }); } });
+      // Smart Money and Macro load everything in the browser, so without
+      // this their HTML was 99% the home page's and Google left them out
+      // ("Crawled - currently not indexed", 2026-11-24). Each verdict block
+      // is replaced whole by the page's own render once its JavaScript runs.
+      if (page.tab === "smartmoney") rw = rw.on("#smart-verdict", { element(el) { el.setInnerContent(SMART_INTRO_HTML, { html: true }); } });
+      if (page.tab === "macro") {
+        let macroHtml = MACRO_INTRO_HTML;
+        if (data) { try { macroHtml = macroVerdictHtml(data); } catch (e) { macroHtml = MACRO_INTRO_HTML; } }
+        rw = rw.on("#macro-verdict", { element(el) { el.setInnerContent(macroHtml, { html: true }); } });
+      }
     }
     return rw.transform(new Response(asset.body, { status: asset.status, headers }));
   },
@@ -395,6 +405,45 @@ function summarySentence(data) {
     if (list.length) parts.push(`${color}: ${list.join(", ")}.`);
   }
   return parts.join(" ");
+}
+
+// ---- Smart Money / Macro text for crawlers --------------------------------
+
+// What the Smart Money tab measures, in words (its numbers load in the
+// browser). Mirrors POSITIONING_MEASURES and the i-pos / i-rot popovers in
+// index.html; change them together.
+const SMART_INTRO_HTML = `<div class="headline"><div class="big">Where the money is leaning</div>
+<div class="sub">Positioning and flows · weeks to quarters</div></div>
+<div class="nar">
+<p><b>Market positioning.</b> How crowded are the main bets? Six measures, each ranked as a percentile of its own history (5 years for futures and put/call, since 1998 for margin debt): asset managers' and hedge funds' S&amp;P 500 futures, hedge funds' VIX futures and 10-year Treasury futures from the CFTC Commitments of Traders report, the CBOE equity put/call ratio, and FINRA margin debt. A crowded bet is fragile, so extremes are read contrarian: heavy fear has often come near bottoms, heavy greed near tops. Context only: not a timing signal (not backtested), and never part of the 3-of-6 stress gate.</p>
+<p><b>Sector capital rotation.</b> Is money actually moving into the sectors that are rising? Each Select Sector SPDR fund's price return against its estimated flow (the daily change in shares outstanding times price) as a share of its size, over 5 days to a year, with SPY and gold as benchmarks. Price up with money arriving is a confirmed move; a rally while money leaves is not backed by new buyers.</p>
+<p><b>Institutional 13F net buying.</b> Which sectors' stocks big institutions bought more of last quarter than the average sector, from every 13F filer's holdings, counted in shares so price moves don't count. Quarterly and 45+ days late: it shows what institutions backed last quarter, not what is happening now.</p>
+<p>Sources: CFTC, CBOE, FINRA, SEC EDGAR, fund share data. Public data; not investment advice.</p>
+</div>`;
+
+const MACRO_INTRO_HTML = `<div class="headline"><div class="big">Macro &amp; Fiscal</div>
+<div class="sub">The slower US backdrop · quarters to years</div></div>
+<div class="nar"><p>A real-data fiscal dominance checklist (Taylor rule gap, primary balance, net interest, auctions, inflation expectations with term premium), the Treasury yield curve, and financial-stress and funding indicators: OFR Financial Stress Index, St. Louis Fed FSI, Chicago Fed NFCI, SOFR against interest on reserves, the Fed balance sheet and the dollar. Public data; not investment advice.</p></div>`;
+
+// The Macro tab's headline with today's numbers and the latest AI-written
+// summary ("What it adds up to"), for crawlers; replaced by renderMacroVerdict().
+function macroVerdictHtml(data) {
+  const m = macroFacts(data);
+  const fact = (lbl, v, small) => `<div class="fact context"><span class="lbl">${escHtml(lbl)}</span><span class="v">${escHtml(v)}${small ? ` <small>${escHtml(small)}</small>` : ""}</span></div>`;
+  const facts = [
+    m.fwd && fact("5y5y inflation expectation", `${m.fwd.v.toFixed(2)}%`, `Treasury/TIPS · ${m.fwd.d}`),
+    m.be && fact("10Y breakeven", `${m.be.v.toFixed(2)}%`, m.be.d),
+    m.tp && fact("10Y term premium", `${m.tp.v.toFixed(2)}%`, `Kim-Wright · ${m.tp.d}`),
+    m.bs && fact("Fed balance sheet", m.bs.text, m.bs.trend ?? m.bs.d),
+    m.ofr && fact("OFR stress index", m.ofr.v.toFixed(2), `${m.ofr.v > 0 ? "above" : "below"} average · ${m.ofr.d}`),
+  ].filter(Boolean).join("");
+  const text = data.macro?.macro_narrative ? String(data.macro.macro_narrative).replace(/\r\n/g, "\n").trim() : "";
+  const nar = text
+    ? `<div class="nar"><p><b>What it adds up to</b> (AI-written, ${escHtml(fmtDate(data.macro.run_at, false))})</p>${text.split(/\n\s*\n/).map((p) => `<p>${escHtml(p.trim())}</p>`).join("")}</div>`
+    : "";
+  if (!facts && !nar) return MACRO_INTRO_HTML;
+  return `<div class="headline"><div class="big">Macro &amp; Fiscal</div><div class="sub">The slower US backdrop · quarters to years</div></div>`
+    + `<div class="facts">${facts}</div>${nar}`;
 }
 
 // ---- Notable Views --------------------------------------------------------
