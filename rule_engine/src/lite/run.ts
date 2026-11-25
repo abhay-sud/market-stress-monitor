@@ -126,5 +126,7 @@ async function main() {
 
 main().catch((err) => {
   console.error(err instanceof Error ? err.message : String(err));
-  process.exit(1);
+  // Not process.exit(): other fetches may still be open, and exiting under
+  // them crashes Node on Windows (libuv assertion). Let the process drain.
+  process.exitCode = 1;
 });

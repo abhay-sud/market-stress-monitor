@@ -94,7 +94,11 @@ async function fred(seriesId: string, fromDate: string, apiKey: string): Promise
   url.searchParams.set("observation_start", fromDate);
   const res = await fetchWithRetry(url.toString());
   // Never include the URL in errors: it carries the API key.
-  if (!res.ok) throw new Error(`FRED ${seriesId}: HTTP ${res.status}`);
+  if (!res.ok) {
+    // The series ids are fixed, so a 400/403 almost always means the key.
+    const hint = res.status === 400 || res.status === 403 ? " (FRED rejected the request: check that FRED_API_KEY is your 32-character key)" : "";
+    throw new Error(`FRED ${seriesId}: HTTP ${res.status}${hint}`);
+  }
   const body = (await res.json()) as { observations?: { date: string; value: string }[] };
   return (body.observations ?? []).filter((o) => o.value !== ".").map((o) => ({ date: o.date, value: Number(o.value) }));
 }
