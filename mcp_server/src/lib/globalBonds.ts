@@ -44,3 +44,42 @@ export function summarizeGlobalBonds(x: Partial<Record<GlobalBondSeries, Reading
     eur_usd: fxRow(x.DEXUSEU),
   };
 }
+
+// ---- Yen carry (2026-11-25) ----
+// Crowding (CFTC leveraged funds' net yen futures position, % of open
+// interest; negative = short yen), the US-Japan 2-year rate gap, and the
+// yen's 10-trading-day move (~14 calendar days). The unwind rule is the M2
+// episode rule, frozen before its run: dollar/yen down 5%+ over 10 trading
+// days with funds at -25% or shorter at the start. It fired twice since 2006
+// (2013-06-11, 2024-07-24). M2 found neither crowding nor crowding x move
+// adds to drawdown + VIX, so this is description, not a warning.
+export const YEN_MOVE_WINDOW_DAYS = 14;
+export const UNWIND_YEN_DROP_PCT = -5;
+export const UNWIND_CROWDED_AT_OR_BELOW = -25;
+
+export interface YenCarryInputs {
+  levNet: { value: number; date: string } | null;
+  /** Leveraged funds' net position as of ~YEN_MOVE_WINDOW_DAYS before the latest dollar/yen date. */
+  levNetBefore: number | null;
+  assetMgrNet: { value: number; date: string } | null;
+  usdjpy: Reading | null; // past = YEN_MOVE_WINDOW_DAYS back
+  us2y: Reading | null; // past = CHANGE_WINDOW_DAYS back
+  jgb2y: Reading | null;
+}
+
+export function summarizeYenCarry(x: YenCarryInputs) {
+  const yenMove = x.usdjpy && x.usdjpy.past ? r2((x.usdjpy.value / x.usdjpy.past - 1) * 100) : null;
+  const gap = x.us2y && x.jgb2y ? r2(x.us2y.value - x.jgb2y.value) : null;
+  const gapChange = x.us2y && x.jgb2y && x.us2y.past !== null && x.jgb2y.past !== null ? bp(x.us2y.value - x.jgb2y.value, x.us2y.past - x.jgb2y.past) : null;
+  const crowded = x.levNet === null ? null : x.levNet.value <= UNWIND_CROWDED_AT_OR_BELOW;
+  const ruleMet = yenMove === null || x.levNetBefore === null ? null : yenMove <= UNWIND_YEN_DROP_PCT && x.levNetBefore <= UNWIND_CROWDED_AT_OR_BELOW;
+  return {
+    leveraged_funds_net_pct_oi: x.levNet && { value: x.levNet.value, report_date: x.levNet.date },
+    asset_managers_net_pct_oi: x.assetMgrNet && { value: x.assetMgrNet.value, report_date: x.assetMgrNet.date },
+    crowded_short_yen: crowded,
+    usdjpy_change_2w_pct: yenMove,
+    us_minus_japan_2y_pct: gap,
+    us_minus_japan_2y_change_4w_bp: gapChange,
+    unwind_rule_met: ruleMet,
+  };
+}

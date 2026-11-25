@@ -77,6 +77,7 @@ const PLAUSIBILITY_RULES: Record<string, PlausibilityRule> = {
   // 1997-2026 ran -0.85% to 5.8%. DEXJPUS 1971-2026 ran ~76 to 358;
   // DEXUSEU 1999-2026 ran ~0.83 to 1.60.
   JGB10: { kind: "absolute", min: -2, max: 15 },
+  JGB2: { kind: "absolute", min: -2, max: 15 },
   BUND10: { kind: "absolute", min: -3, max: 15 },
   DEXJPUS: { kind: "absolute", min: 50, max: 400 },
   DEXUSEU: { kind: "absolute", min: 0.5, max: 2.5 },

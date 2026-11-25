@@ -1062,8 +1062,17 @@ Four indicators are covered by this section:
   `renderGlobalBonds` in `dashboard_site/index.html`; change them
   together). The "moved together" label (gap changed under 10bp in 4
   weeks) is a reading aid, not a tested threshold.
+- **Yen carry block** (same card and `global_bonds.yen_carry`): CFTC
+  leveraged funds' and asset managers' net CME yen futures position
+  (`COT_JY_LEV_FUNDS_NET_PCT_OI`, `COT_JY_ASSET_MGR_NET_PCT_OI`, % of open
+  interest, weekly from 2006; crowded = -25% or lower), US minus Japan
+  2-year (`JGB2` from the same MoF file) with its 4-week change, and the
+  yen's 2-week move. "Unwind conditions met" = dollar/yen down 5%+ over 10
+  trading days with funds at -25% or shorter at the start (the M2 episode
+  rule, fixed before its run). It fired twice since 2006: 2013-06-11 and
+  2024-07-24.
 - **Context only, tested:** see "Bond-market and yen stress as a Stress-tab
-  input (M1)" under "Investigated and rejected". None of these counts
+  input (M1)" and "Yen carry crowding (M2)" under "Investigated and rejected". None of these counts
   toward `red_count`, the stress gate or waves, and none should be cited
   as a crash signal.
 
@@ -1245,6 +1254,17 @@ file was before being trusted:
   after equity stress, not before it. These stay on Macro as context; the
   2022 crisis was the one window where adding them helped
   (leave-one-crisis-out AUC 0.75 → 0.82). Re-test before promoting any.
+- **Yen carry crowding (M2)** — rejected 2026-11-25. Rules committed
+  before the run (`market-hazard-model` 3309a5e,
+  `experiments/m2_yen_carry`). Same method and bar as M1, test days
+  2012-2026 (CFTC data starts 2006). Nothing passed at either horizon:
+  crowding alone (CFTC leveraged funds' net yen position) −0.011 at 21d and
+  −0.053 [−0.110, −0.004] at 63d; crowding × the yen's 10-day move −0.017 /
+  −0.053; the US-Japan 2-year gap's 20-day change +0.004 / +0.021
+  [−0.010, +0.048] (closest, within noise). The unwind episode rule fired
+  only twice since 2006 (2013-06-11: S&P worst −3.3% over 63 days;
+  2024-07-24: −4.4%), too few to measure. The yen carry block stays
+  descriptive.
 - **Private-credit proxy: BDC ETF (BIZD) 30-day total return ≤ −10%**
   (build spec E6) — rejected 2026-11-13 after a backtest on Yahoo's
   adjusted closes (total return, distributions included), 2013-03 to

@@ -23,6 +23,10 @@ const CONTRACTS = [
   { code: "13874A", key: "ES" }, // E-mini S&P 500
   { code: "1170E1", key: "VIX" }, // VIX futures
   { code: "043602", key: "TY" }, // 10-year Treasury note
+  // CME Japanese yen (added 2026-11-25): yen carry-trade crowding for the
+  // Macro tab's Global bonds card. Negative = short yen (carry crowded).
+  // Context only: the M2 backtest found it adds nothing to drawdown + VIX.
+  { code: "097741", key: "JY" },
 ] as const;
 
 // Which trader groups to store per contract. Asset managers = pensions,
@@ -36,6 +40,7 @@ const GROUPS: Record<(typeof CONTRACTS)[number]["key"], ("asset_mgr" | "lev_mone
   ES: ["asset_mgr", "lev_money"],
   VIX: ["lev_money"],
   TY: ["lev_money"],
+  JY: ["asset_mgr", "lev_money"],
 };
 
 const GROUP_SERIES_LABEL = { asset_mgr: "ASSET_MGR", lev_money: "LEV_FUNDS" } as const;

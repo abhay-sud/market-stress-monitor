@@ -275,7 +275,7 @@ async function supabase(path) {
 // traffic light, not in the gate). Listed here so AI tools reading
 // /latest.md see that the site covers more than the six gate indicators.
 // Signal wording mirrors CONTEXT_INFO in index.html; change them together.
-const CONTEXT_SERIES = ["OFR_FSI", "STLFSI4", "NFCI", "SOFR", "IORB", "DTWEXBGS", "T5YIFR", "T10YIE", "THREEFYTP10", "WALCL", "MOVE", "JGB10", "BUND10", "DEXJPUS", "DGS10"];
+const CONTEXT_SERIES = ["OFR_FSI", "STLFSI4", "NFCI", "SOFR", "IORB", "DTWEXBGS", "T5YIFR", "T10YIE", "THREEFYTP10", "WALCL", "MOVE", "JGB10", "BUND10", "DEXJPUS", "DGS10", "COT_JY_LEV_FUNDS_NET_PCT_OI"];
 const CONTEXT_LOOKBACK_DAYS = 45;
 
 // Inflation expectations, term premium, the Fed balance sheet and the OFR
@@ -333,6 +333,7 @@ function contextLines(ctx, oldest) {
   if (v("MOVE") != null) out.push(`| MOVE index (ICE BofA, Treasury implied volatility: the bond market's VIX) | ${v("MOVE").toFixed(0)} | ${v("MOVE") > 160 ? "stress level (above 160)" : v("MOVE") > 130 ? "elevated (above 130)" : "normal (130 or below)"} | ${d("MOVE")} |`);
   if (v("JGB10") != null) out.push(`| Japan 10-year government bond yield (Ministry of Finance) | ${v("JGB10").toFixed(2)}% | Japan is the largest foreign holder of US Treasuries | ${d("JGB10")} |`);
   if (v("BUND10") != null) out.push(`| Germany 10-year government bond yield (Bundesbank) | ${v("BUND10").toFixed(2)}% | ${v("DGS10") != null ? `US 10-year minus Germany: ${(v("DGS10") - v("BUND10")).toFixed(2)} points` : "the euro area's benchmark"} | ${d("BUND10")} |`);
+  if (v("COT_JY_LEV_FUNDS_NET_PCT_OI") != null) out.push(`| Hedge funds' net yen futures position (CFTC, % of open interest; negative = short yen) | ${v("COT_JY_LEV_FUNDS_NET_PCT_OI").toFixed(1)}% | ${v("COT_JY_LEV_FUNDS_NET_PCT_OI") <= -25 ? "carry trade crowded (-25% or lower)" : "carry trade not crowded"} | ${d("COT_JY_LEV_FUNDS_NET_PCT_OI")} |`);
   if (v("DEXJPUS") != null) out.push(`| Dollar/yen (Federal Reserve H.10) | ${v("DEXJPUS").toFixed(2)} | a fast fall (stronger yen) squeezes yen-funded carry trades | ${d("DEXJPUS")} |`);
   const m = macroFacts({ context: ctx, contextOldest: oldest });
   if (m.fwd) out.push(`| 5-year, 5-year forward inflation expectation (FRED T5YIFR, from Treasury and TIPS yields; not a swap rate) | ${m.fwd.v.toFixed(2)}% | average inflation the bond market expects for the five years starting five years from now | ${m.fwd.d} |`);

@@ -28,7 +28,7 @@ import { computeFundingPressureFlag } from "./lib/repoStress.js";
 import { resolveConditional, dueEvents } from "./lib/conditionalScenarios.js";
 import { priorStateOf, scenarioPriorFor, validateTiltReasons, SCENARIO_METHOD, type Tilt } from "./lib/scenarioTilt.js";
 import { classifyMoveLevel, MOVE_ELEVATED_ABOVE, MOVE_STRESS_ABOVE } from "./lib/bondVolatility.js";
-import { CHANGE_WINDOW_DAYS, GLOBAL_BOND_SERIES, summarizeGlobalBonds, type GlobalBondSeries, type Reading } from "./lib/globalBonds.js";
+import { CHANGE_WINDOW_DAYS, GLOBAL_BOND_SERIES, summarizeGlobalBonds, summarizeYenCarry, YEN_MOVE_WINDOW_DAYS, type GlobalBondSeries, type Reading } from "./lib/globalBonds.js";
 import { loadRulesDoc, parseSections, findSection, tableOfContents } from "./lib/rulesDoc.js";
 import { readInstructionDoc } from "./lib/instructionsDoc.js";
 import { loadMonitoringConfig } from "./lib/monitoring.js";
@@ -631,7 +631,26 @@ async function computeGlobalBonds() {
       return [id, { value: latest.value, date: latest.observation_date, past }];
     }),
   );
-  return summarizeGlobalBonds(Object.fromEntries(readings));
+  const read = async (id: string, back: number): Promise<Reading | null> => {
+    const latest = await getLatestDataPoint(id);
+    if (!latest) return null;
+    return { value: latest.value, date: latest.observation_date, past: await getValueOnOrBefore(id, subtractDays(latest.observation_date, back)) };
+  };
+  const [usdjpy, us2y, jgb2y, lev, am] = await Promise.all([
+    read("DEXJPUS", YEN_MOVE_WINDOW_DAYS), read("DGS2", CHANGE_WINDOW_DAYS), read("JGB2", CHANGE_WINDOW_DAYS),
+    getLatestDataPoint("COT_JY_LEV_FUNDS_NET_PCT_OI"), getLatestDataPoint("COT_JY_ASSET_MGR_NET_PCT_OI"),
+  ]);
+  // Positioning as known at the start of the yen window (CFTC is as of Tuesday, out Friday).
+  const levNetBefore = usdjpy ? await getValueOnOrBefore("COT_JY_LEV_FUNDS_NET_PCT_OI", subtractDays(usdjpy.date, YEN_MOVE_WINDOW_DAYS + 4)) : null;
+  return {
+    ...summarizeGlobalBonds(Object.fromEntries(readings)),
+    yen_carry: summarizeYenCarry({
+      levNet: lev && { value: lev.value, date: lev.observation_date },
+      levNetBefore,
+      assetMgrNet: am && { value: am.value, date: am.observation_date },
+      usdjpy, us2y, jgb2y,
+    }),
+  };
 }
 
 server.registerTool(
@@ -1007,7 +1026,11 @@ server.registerTool(
           "fast yen rise (usd_jpy change_4w_pct well below zero) is how the 2024 carry-trade unwind showed; the US-" +
           "Germany gap tells a US-specific yield move (fiscal or term-premium worry) from a global one. Context only, " +
           "with no measured edge: the 2003-2026 backtest found none of these improves on drawdown + VIX at 21 or 63 " +
-          "trading days, so never cite them as a crash signal or a reason to deploy.",
+          "trading days, so never cite them as a crash signal or a reason to deploy. yen_carry: CFTC leveraged funds' net yen " +
+          "futures position (% of open interest, negative = short yen; crowded_short_yen at -25 or lower), the US-Japan 2-year gap " +
+          "and the yen's 2-week move. unwind_rule_met = dollar/yen down 5%+ over ~2 weeks with funds crowded short at the start " +
+          "(fired 2013-06 and 2024-07 since 2006). Also context only: the M2 backtest found crowding, alone or with the yen move, " +
+          "adds nothing to drawdown + VIX.",
       },
       broad_dollar_index: dtwexbgs && { ...dtwexbgs, signal: "rising = dollar strength, tightens global dollar-funding conditions and pressures EM/commodities" },
       nfci_risk_subindex: nfciRisk && { ...nfciRisk, signal: nfciRisk.value > 0 ? "elevated financial-sector volatility/funding risk" : "below-average" },

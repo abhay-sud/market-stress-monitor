@@ -1,7 +1,7 @@
 // Run: npm test (node's built-in test runner via tsx -- no test framework dependency).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { summarizeGlobalBonds } from "./globalBonds.js";
+import { summarizeGlobalBonds, summarizeYenCarry } from "./globalBonds.js";
 
 const r = (value: number, past: number | null) => ({ value, date: "2026-11-24", past });
 
@@ -25,4 +25,16 @@ test("moves within 10bp of each other read as global; missing data gives nulls, 
   assert.equal(n.us_minus_germany_change_4w_bp, null);
   assert.equal(n.us_vs_germany_move, null);
   assert.equal(n.usd_jpy?.change_4w_pct, null);
+});
+
+test("yen carry: unwind rule needs both a 5% yen rise and crowding at the start", () => {
+  const base = { levNet: { value: -8, date: "2024-08-06" }, assetMgrNet: { value: -6, date: "2024-08-06" }, us2y: r(3.89, 4.37), jgb2y: r(0.35, 0.33) };
+  const aug2024 = summarizeYenCarry({ ...base, levNetBefore: -31.2, usdjpy: r(143.95, 153.39) });
+  assert.equal(aug2024.usdjpy_change_2w_pct, -6.15);
+  assert.equal(aug2024.unwind_rule_met, true);
+  assert.equal(aug2024.crowded_short_yen, false); // crowding already gone by the latest report
+  assert.equal(aug2024.us_minus_japan_2y_change_4w_bp, -50);
+  assert.equal(summarizeYenCarry({ ...base, levNetBefore: -12, usdjpy: r(143.95, 153.39) }).unwind_rule_met, false);
+  assert.equal(summarizeYenCarry({ ...base, levNetBefore: -31, usdjpy: r(150, 153) }).unwind_rule_met, false);
+  assert.equal(summarizeYenCarry({ ...base, levNetBefore: null, usdjpy: r(150, 153) }).unwind_rule_met, null);
 });

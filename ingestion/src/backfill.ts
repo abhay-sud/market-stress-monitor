@@ -82,6 +82,10 @@ async function main() {
     for (const [label, fn] of [
       ["Japan + Germany 10-year yields (MoF 1986+, Bundesbank 1997+)", fetchGlobalRatesBackfill],
       ["Dollar/yen + euro/dollar (FRED)", () => fetchFredSeriesBackfill(["DEXJPUS", "DEXUSEU"])],
+      // MOVE's 2002+ history was only ever in the full backfill, which never
+      // ran on this repo (data started 2026-08-13 until 2026-11-25).
+      ["MOVE (2002-present via Yahoo)", fetchYahooMoveBackfill],
+      ["CFTC Traders in Financial Futures incl. yen (2006-present)", fetchCftcBackfill],
     ] as const) {
       try {
         console.log(`Backfilling ${label}...`);

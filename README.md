@@ -223,8 +223,8 @@ How changes get made, and what's been thrown out along the way:
 - **New signals are backtested before they ship.** A flag needs a base rate
   and a forward edge. Rejected so far, with the evidence kept: a MOVE-vs-VIX
   divergence flag, a BDC-ETF private-credit proxy, high-frequency positioning
-  signals, a CTA trend-exposure estimate, and bond-volatility, Japan-yield and
-  yen inputs to the stress panel. See "Investigated and rejected"
+  signals, a CTA trend-exposure estimate, and bond-volatility, Japan-yield,
+  yen and yen-carry-crowding inputs to the stress panel. See "Investigated and rejected"
   in the rules doc,
   [`BUILD_SPEC_crash_check_enhancements.md`](reference_docs/BUILD_SPEC_crash_check_enhancements.md)
   and the
