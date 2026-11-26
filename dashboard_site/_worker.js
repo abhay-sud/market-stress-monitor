@@ -59,18 +59,21 @@ const TAB_PAGES = {
   "/smart-money": {
     tab: "smartmoney",
     brand: "· Smart money: market positioning and 13F flows",
+    crumb: "Smart Money",
     title: "Smart Money: market positioning and 13F flows · Market Stress Monitor",
     description: "Where the money is leaning: CFTC futures positioning, put/call and margin debt as percentiles, sector fund flows and 13F net buying. Not investment advice.",
   },
   "/macro": {
     tab: "macro",
     brand: "· Macro and fiscal: fiscal dominance, yield curve and financial stress",
+    crumb: "Macro & Fiscal",
     title: "Macro & Fiscal: fiscal dominance, yield curve, financial stress · Market Stress Monitor",
     description: "The slower US backdrop: a real-data fiscal dominance checklist, the yield curve with term premium, and financial-stress and funding indicators. Not advice.",
   },
   "/views": {
     tab: "analysts",
     brand: "· Notable views: macro investors vs live data",
+    crumb: "Notable Views",
     title: "Notable Views: macro investors' views vs live data · Market Stress Monitor",
     // Names are filled in from analyst_views.json (viewsDescription) when it loads.
     description: "Public views of well-known macro investors and economists on debt, rates, the Fed and markets, each linked, dated and checked against live data.",
@@ -158,8 +161,7 @@ async function route(request, env, ctx) {
       .on("#site-summary", { element(el) {
         el.prepend(`<span class="answer">${escHtml(answerSentence(data))}</span> `, { html: true });
         el.append(` ${escHtml(readingLists(facts(data)))}`, { html: true });
-      } })
-      .on('script[type="application/ld+json"]', datasetDateModified(data.row.run_at));
+      } });
     // The home page's description carries today's numbers, so search
     // snippets, AI answers built on them and link previews show the live
     // reading rather than a generic blurb (tab pages keep their own).
@@ -170,6 +172,7 @@ async function route(request, env, ctx) {
         .on('meta[property="og:description"]', { element(el) { el.setAttribute("content", live); } });
     }
   }
+  rw = rw.on('script[type="application/ld+json"]', jsonLdRewrite(data?.row.run_at ?? null, page, url.pathname));
   if (page) {
     const canonical = `${SITE}${url.pathname}`;
     rw = rw
@@ -346,9 +349,12 @@ function feedEntry({ day, row }, prevDay) {
     + `  </entry>\n`;
 }
 
-// Sets the Dataset's dateModified in the page's JSON-LD to the latest run.
-// Leaves the script untouched if it doesn't parse.
-function datasetDateModified(iso) {
+// The page's JSON-LD. Home: the Dataset's dateModified is set to the latest
+// run. Tab pages (SEO audit 2026-11-25): the Dataset and the home WebPage are
+// swapped for the tab's own CollectionPage with a breadcrumb, "about" the
+// home Dataset, so the Dataset is described on one URL only. Leaves the
+// script untouched if it doesn't parse.
+function jsonLdRewrite(iso, page, path) {
   let buf = "";
   return {
     text(t) {
@@ -357,8 +363,36 @@ function datasetDateModified(iso) {
       let out = buf;
       try {
         const j = JSON.parse(buf);
-        const ds = (j["@graph"] ?? []).find((n) => n["@type"] === "Dataset");
-        if (ds && iso) { ds.dateModified = new Date(iso).toISOString(); out = `\n${JSON.stringify(j, null, 2)}\n`; }
+        const graph = j["@graph"] ?? [];
+        const modified = iso ? new Date(iso).toISOString() : null;
+        if (page) {
+          const url = `${SITE}${path}`;
+          j["@graph"] = graph.filter((n) => n["@type"] !== "Dataset" && n["@type"] !== "WebPage").concat({
+            "@type": "CollectionPage",
+            "@id": `${url}#page`,
+            url,
+            name: page.title,
+            description: page.description,
+            isPartOf: { "@id": `${SITE}/#site` },
+            about: { "@id": `${SITE}/#dataset` },
+            ...(modified && page.tab !== "analysts" ? { dateModified: modified } : {}),
+            breadcrumb: {
+              "@type": "BreadcrumbList",
+              itemListElement: [
+                { "@type": "ListItem", position: 1, name: "Market Stress Monitor", item: `${SITE}/` },
+                { "@type": "ListItem", position: 2, name: page.crumb, item: url },
+              ],
+            },
+          });
+        } else {
+          const ds = graph.find((n) => n["@type"] === "Dataset");
+          if (!ds || !modified) { t.replace(out, { html: true }); return; }
+          ds.dateModified = modified;
+        }
+        // "</" can't appear inside a script element.
+        out = `
+${JSON.stringify(j, null, 2).replace(/<\//g, "<\\/")}
+`;
       } catch (e) { out = buf; }
       t.replace(out, { html: true });
     },

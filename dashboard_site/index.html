@@ -36,7 +36,17 @@
       "@id": "https://marketstress.org/#org",
       "name": "Market Stress Monitor",
       "url": "https://marketstress.org/",
-      "logo": "https://marketstress.org/icon-512.png"
+      "description": "An open-source, rules-based daily monitor of US market crash risk built from public data.",
+      "logo": { "@type": "ImageObject", "url": "https://marketstress.org/icon-512.png", "width": 512, "height": 512 },
+      "sameAs": ["https://github.com/abhay-sud/market-stress-monitor"]
+    },
+    {
+      "@type": "WebPage",
+      "@id": "https://marketstress.org/#page",
+      "url": "https://marketstress.org/",
+      "name": "Market Stress Monitor: daily crash-risk indicators",
+      "isPartOf": { "@id": "https://marketstress.org/#site" },
+      "about": { "@id": "https://marketstress.org/#dataset" }
     },
     {
       "@type": "Dataset",
@@ -53,8 +63,22 @@
       },
       "description": "Each weekday, six public indicators (VIX, high-yield credit spreads, S&P 500 drawdown from its all-time high, the 10-year Treasury yield, the Sahm rule and Fed policy signals) are classified RED, AMBER or GREEN by fixed rules, with confirmation days before a signal counts. Context covers market positioning (CFTC, put/call, margin debt), institutional 13F flows, a fiscal-dominance checklist and the yield curve. A personal project, not investment advice.",
       "isAccessibleForFree": true,
-      "variableMeasured": ["VIX", "ICE BofA US High Yield option-adjusted spread", "S&P 500 drawdown from all-time high", "10-year Treasury yield", "Sahm rule recession indicator", "Fed policy pivot signal"],
-      "isBasedOn": ["FRED", "U.S. Treasury", "EIA", "CBOE", "CFTC", "FINRA", "SEC EDGAR", "Polymarket", "Yahoo Finance"]
+      "publisher": { "@id": "https://marketstress.org/#org" },
+      "license": "https://github.com/abhay-sud/market-stress-monitor/blob/main/LICENSE",
+      "copyrightNotice": "The classifications are MIT-licensed. The underlying series remain the property of their original providers (e.g. ICE Data Indices via FRED).",
+      "temporalCoverage": "2026-07-09/..",
+      "keywords": ["market stress", "crash risk", "VIX", "high-yield credit spread", "S&P 500 drawdown", "Sahm rule", "10-year Treasury yield", "Fed pivot"],
+      "measurementTechnique": "Fixed RED/AMBER/GREEN threshold rules with confirmation days; drawdown risk band from S&P 500 drawdown plus VIX/5",
+      "sameAs": ["https://github.com/abhay-sud/market-stress-monitor"],
+      "variableMeasured": [
+        { "@type": "PropertyValue", "name": "VIX", "description": "CBOE volatility index", "url": "https://fred.stlouisfed.org/series/VIXCLS" },
+        { "@type": "PropertyValue", "name": "ICE BofA US High Yield option-adjusted spread", "unitText": "basis points", "url": "https://fred.stlouisfed.org/series/BAMLH0A0HYM2" },
+        { "@type": "PropertyValue", "name": "S&P 500 drawdown from all-time high", "unitText": "percent", "url": "https://fred.stlouisfed.org/series/SP500" },
+        { "@type": "PropertyValue", "name": "10-year Treasury yield", "unitText": "percent", "url": "https://fred.stlouisfed.org/series/DGS10" },
+        { "@type": "PropertyValue", "name": "Sahm rule recession indicator", "url": "https://fred.stlouisfed.org/series/SAHMREALTIME" },
+        { "@type": "PropertyValue", "name": "Fed policy pivot signal", "description": "AI judgment of Fed communication, checked against the Fed funds target", "url": "https://fred.stlouisfed.org/series/DFEDTARU" }
+      ],
+      "isBasedOn": ["https://fred.stlouisfed.org/", "https://fiscaldata.treasury.gov/", "https://www.cboe.com/", "https://www.cftc.gov/MarketReports/CommitmentsofTraders/index.htm", "https://www.finra.org/rules-guidance/key-topics/margin-accounts/margin-statistics", "https://www.sec.gov/edgar"]
     }
   ]
 }
@@ -988,6 +1012,24 @@
   .theme-btn svg { width:14px; height:14px; }
   .theme-btn .sun, :root[data-theme="dark"] .theme-btn .moon { display:none; }
   :root[data-theme="dark"] .theme-btn .sun { display:block; }
+
+  /* Touch (2026-11-25, SEO audit): small controls get an invisible hit area
+     of roughly 44px, so they're easier to tap without changing the look. */
+  @media (pointer: coarse) {
+    .rd .info, .rd .dn-btn, .rd #refresh-btn, .theme-btn, .howlink { position:relative; }
+    .rd .info::after { content:""; position:absolute; inset:-15px -14px; }
+    .rd .dn-btn::after, .rd #refresh-btn::after, .theme-btn::after { content:""; position:absolute; inset:-11px -6px; }
+    .howlink::after { content:""; position:absolute; inset:-16px -6px; }
+    .rd .info.txt::after { inset:-14px -4px; }
+  }
+  /* Phone: taller tabs and an 11px floor for section labels and the footer. */
+  @media (max-width: 640px) {
+    :root { --label: 600 11px/1 var(--font-ui); }
+    .rd .tab-btn { min-height:44px; }
+    .rfooter { font-size:11px; }
+  }
+  .rfooter a { color:inherit; }
+  .rfooter .trust a { color:var(--accent); }
 </style>
 </head>
 <body class="rd">
@@ -1116,8 +1158,10 @@
   <footer class="rfooter">
     <p id="site-summary"><b>Market Stress Monitor</b> classifies six public indicators (VIX, high-yield credit spreads, S&amp;P 500 drawdown, the 10-year Treasury yield, the Sahm rule and Fed policy) RED, AMBER or GREEN each weekday, with positioning, smart-money, macro and fiscal context.</p>
     <p><a href="/how-it-works">How it works, in plain English &rarr;</a> · <a href="/feed.xml">Daily reading by RSS</a></p>
+    <!-- Trust row (2026-11-25, SEO audit). Same links in how-it-works.html. -->
+    <p class="trust">Open source (<a href="https://github.com/abhay-sud/market-stress-monitor/blob/main/LICENSE">MIT</a>) · <a href="https://github.com/abhay-sud/market-stress-monitor">Source code</a> · <a href="https://github.com/abhay-sud/market-stress-monitor/issues">Report an issue</a> · <a href="https://github.com/abhay-sud/market-stress-monitor/commits/main/reference_docs/rules/crash-check-rules.md">Methodology changes</a></p>
     <p class="disclaimer"><b>For information only, not investment advice.</b> A personal project: signals apply the author's own rules, plus some AI judgment, to public data. They are not recommendations or calibrated forecasts, and data can be delayed or wrong.</p>
-    <p>Data: FRED (some series &copy; their original providers, e.g. ICE Data Indices), U.S. Treasury, EIA, CBOE, CFTC, FINRA, SEC EDGAR, State Street, Caldara&ndash;Iacoviello GPR, Polymarket, Yahoo Finance, Massive. Not affiliated with or endorsed by any of them.</p>
+    <p>Data: <a href="https://fred.stlouisfed.org/">FRED</a> (some series &copy; their original providers, e.g. ICE Data Indices), <a href="https://fiscaldata.treasury.gov/">U.S. Treasury</a>, EIA, <a href="https://www.cboe.com/">CBOE</a>, <a href="https://www.cftc.gov/MarketReports/CommitmentsofTraders/index.htm">CFTC</a>, <a href="https://www.finra.org/rules-guidance/key-topics/margin-accounts/margin-statistics">FINRA</a>, <a href="https://www.sec.gov/edgar">SEC EDGAR</a>, State Street, Caldara&ndash;Iacoviello GPR, Polymarket, Yahoo Finance, Massive. Not affiliated with or endorsed by any of them.</p>
   </footer>
   <div id="pop-layer"></div>
 </div>

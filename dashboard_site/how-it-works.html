@@ -28,9 +28,12 @@
       "url": "https://marketstress.org/how-it-works",
       "image": "https://marketstress.org/og-image.png",
       "inLanguage": "en",
-      "dateModified": "2026-11-24",
+      "datePublished": "2026-11-17",
+      "dateModified": "2026-11-25",
       "isPartOf": { "@id": "https://marketstress.org/#site" },
-      "publisher": { "@type": "Organization", "@id": "https://marketstress.org/#org", "name": "Market Stress Monitor", "url": "https://marketstress.org/" },
+      "mainEntityOfPage": "https://marketstress.org/how-it-works",
+      "author": { "@type": "Organization", "@id": "https://marketstress.org/#org", "name": "Market Stress Monitor", "url": "https://marketstress.org/" },
+      "publisher": { "@id": "https://marketstress.org/#org" },
       "about": ["Stock market crash risk", "Financial stress indicators", "VIX", "High-yield credit spreads", "Sahm rule"]
     },
     {
@@ -197,6 +200,7 @@
   footer > div { border-top:1px solid var(--hair); padding-top:10px; font:400 10px/1.45 var(--font-ui); color:var(--text-muted); }
   footer p { margin:0; } footer p + p { margin-top:3px; }
   footer b { color:var(--text-secondary); font-weight:600; }
+  footer a { color:inherit; } footer .trust a { color:var(--accent); }
 
   /* illustration strokes */
   .ink { stroke:var(--ink); stroke-width:2.5; stroke-linecap:round; stroke-linejoin:round; fill:none; }
@@ -571,8 +575,10 @@
 </main>
 
 <footer><div>
+  <!-- Trust row (2026-11-25, SEO audit). Same links in index.html. -->
+  <p class="trust">Open source (<a href="https://github.com/abhay-sud/market-stress-monitor/blob/main/LICENSE">MIT</a>) · <a href="https://github.com/abhay-sud/market-stress-monitor">Source code</a> · <a href="https://github.com/abhay-sud/market-stress-monitor/issues">Report an issue</a> · <a href="https://github.com/abhay-sud/market-stress-monitor/commits/main/reference_docs/rules/crash-check-rules.md">Methodology changes</a></p>
   <p><b>For information only, not investment advice.</b> A personal project: signals apply the author's own rules, plus some AI judgment, to public data. They are not recommendations or calibrated forecasts, and data can be delayed or wrong.</p>
-  <p>Data: FRED (some series &copy; their original providers, e.g. ICE Data Indices), U.S. Treasury, EIA, CBOE, CFTC, FINRA, SEC EDGAR, State Street, Caldara&ndash;Iacoviello GPR, Polymarket, Yahoo Finance, Massive. Not affiliated with or endorsed by any of them.</p>
+  <p>Data: <a href="https://fred.stlouisfed.org/">FRED</a> (some series &copy; their original providers, e.g. ICE Data Indices), <a href="https://fiscaldata.treasury.gov/">U.S. Treasury</a>, EIA, <a href="https://www.cboe.com/">CBOE</a>, <a href="https://www.cftc.gov/MarketReports/CommitmentsofTraders/index.htm">CFTC</a>, <a href="https://www.finra.org/rules-guidance/key-topics/margin-accounts/margin-statistics">FINRA</a>, <a href="https://www.sec.gov/edgar">SEC EDGAR</a>, State Street, Caldara&ndash;Iacoviello GPR, Polymarket, Yahoo Finance, Massive. Not affiliated with or endorsed by any of them.</p>
 </div></footer>
 </body>
 </html>
