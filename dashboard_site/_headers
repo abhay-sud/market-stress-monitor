@@ -1,0 +1,8 @@
+# Security headers for static files (2026-11-25, SEO audit). Pages served by
+# _worker.js (see _routes.json) get the same set from SECURITY_HEADERS there,
+# because this file does not apply to worker responses. Change both together.
+/*
+  Content-Security-Policy: frame-ancestors 'self'; base-uri 'self'; object-src 'none'; form-action 'self'
+  X-Frame-Options: SAMEORIGIN
+  X-Content-Type-Options: nosniff
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()

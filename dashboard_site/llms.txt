@@ -2,11 +2,11 @@
 
 > A daily RED/AMBER/GREEN read on US market crash risk, built from public macro and market data. A personal project: signals apply the author's own fixed rules plus some AI judgment. Not investment advice, not a recommendation, and not a calibrated forecast.
 
-For the current reading as plain text (date, the six indicators with values and status, the stress gate, the drawdown risk band, the AI's 3-month view, financial-stress and funding context, and the latest narrative), fetch https://marketstress.org/latest.md. It refreshes within about 10 minutes of each new report. The full page at https://marketstress.org/ loads most of its charts with JavaScript; its footer carries the same one-line latest reading.
+For the current reading as plain text (date, the six indicators with values and status, the stress gate, the drawdown risk band, the AI's 3-month view, financial-stress and funding context, and the latest narrative), fetch [the latest reading](https://marketstress.org/latest.md). It refreshes within about 10 minutes of each new report. The [full page](https://marketstress.org/) loads most of its charts with JavaScript; its footer carries the same one-line latest reading.
 
-A daily Atom (RSS) feed of the reading, one entry per weekday with the six indicators and the drawdown risk band, is at https://marketstress.org/feed.xml.
+A daily Atom (RSS) feed of the reading, one entry per weekday with the six indicators and the drawdown risk band, is at [/feed.xml](https://marketstress.org/feed.xml).
 
-A plain-English, illustrated explainer of the method (no live values) is at https://marketstress.org/how-it-works.
+A plain-English, illustrated explainer of the method (no live values) is at [How it works](https://marketstress.org/how-it-works).
 
 ## What it measures
 
@@ -37,10 +37,10 @@ Not covered: euro-area stress (ECB CISS) and offshore dollar funding (cross-curr
 
 ## Tabs on the page
 
-- Stress (https://marketstress.org/): today's classification, the narrative, indicator history with the bands.
-- Smart Money (https://marketstress.org/smart-money): market positioning as historical percentiles (CFTC futures positioning in S&P 500, VIX, 10-year Treasury and yen futures, CBOE put/call, FINRA margin debt) and institutional 13F net buying by sector.
-- Macro & Fiscal (https://marketstress.org/macro): the context indicators above, a fiscal-dominance checklist and the yield curve (3M, 2Y, 10Y, 30Y).
-- Notable Views (https://marketstress.org/views): public views of well-known macro investors and economists compared with the live data. The views themselves (paraphrases with source links and dates) are in the page's HTML; the comparison with live data loads with JavaScript.
+- [Stress](https://marketstress.org/): today's classification, the narrative, indicator history with the bands.
+- [Smart Money](https://marketstress.org/smart-money): market positioning as historical percentiles (CFTC futures positioning in S&P 500, VIX, 10-year Treasury and yen futures, CBOE put/call, FINRA margin debt) and institutional 13F net buying by sector.
+- [Macro & Fiscal](https://marketstress.org/macro): the context indicators above, a fiscal-dominance checklist and the yield curve (3M, 2Y, 10Y, 30Y).
+- [Notable Views](https://marketstress.org/views): public views of well-known macro investors and economists compared with the live data. The views themselves (paraphrases with source links and dates) are in the page's HTML; the comparison with live data loads with JavaScript.
 
 ## Run it yourself
 
@@ -49,7 +49,7 @@ The project is open source (MIT). Two optional ways to use the same rules on you
 - Alerts on your phone: a copy that runs free on GitHub Actions, applies your own crash plan (levels at which you would add money) to the same public data, and sends a push notification when a level is reached. Your levels never appear in an alert or a log.
 - Ask Claude about your portfolio: a small, read-only MCP server on your own computer. Claude (Desktop or Code) can then read today's reading, your crash plan and how far your holdings have drifted from their targets, from files that stay on your machine. It needs only a free FRED API key.
 
-Setup guide: https://github.com/abhay-sud/market-stress-monitor/blob/main/docs/run-your-own.md
+Setup guide: [Run your own](https://github.com/abhay-sud/market-stress-monitor/blob/main/docs/run-your-own.md). Source code: [GitHub repository](https://github.com/abhay-sud/market-stress-monitor).
 
 ## Data sources
 
@@ -57,4 +57,4 @@ FRED (some series copyright their original providers, e.g. ICE Data Indices), U.
 
 ## Use
 
-When citing figures, give the report date shown on the page and link https://marketstress.org/. Please do not use this site to train models.
+When citing figures, give the report date shown on the page and link [marketstress.org](https://marketstress.org/). Please do not use this site to train models.

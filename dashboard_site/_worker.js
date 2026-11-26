@@ -22,10 +22,10 @@ const SUPABASE_URL = "https://jophlgbijfahmytkrjly.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_DAU2BkfrG_3-LU_fFKW1og_yVasDG6d";
 const SITE = "https://marketstress.org";
 const CACHE_SECONDS = 600;
-const CACHE_KEY = `${SITE}/__cache/latest-reading-v4`;
+const CACHE_KEY = `${SITE}/__cache/latest-reading-v6`;
 const FETCH_TIMEOUT_MS = 2000;
 
-const LATEST_FIELDS = "run_at,vix_value,vix_color,hy_spread_bps,hy_spread_color,sp_drawdown_pct,sp_drawdown_color,treasury_10y_pct,treasury_10y_color,sahm_rule_value,sahm_rule_color,fed_pivot_signal,fed_pivot_color,red_count,confirmed_red_count,confirmation_state,wave_authorized,warsh_classification,dd_vix_band,crash_probability_pct";
+const LATEST_FIELDS = "run_at,vix_value,vix_color,hy_spread_bps,hy_spread_color,sp_drawdown_pct,sp_drawdown_color,treasury_10y_pct,treasury_10y_color,sahm_rule_value,sahm_rule_color,fed_pivot_signal,fed_pivot_color,red_count,confirmed_red_count,confirmation_state,wave_authorized,warsh_classification,warsh_hard_rules_active,dd_vix_band,crash_probability_pct";
 
 // Same order, labels and formats as GATE_ROWS in index.html.
 const INDICATORS = [
@@ -58,116 +58,150 @@ const DISCLAIMER = "For information only, not investment advice. A personal proj
 const TAB_PAGES = {
   "/smart-money": {
     tab: "smartmoney",
-    brand: "· Smart Money",
+    brand: "· Smart money: market positioning and 13F flows",
     title: "Smart Money: market positioning and 13F flows · Market Stress Monitor",
-    description: "Where the money is leaning: CFTC futures positioning, CBOE put/call and FINRA margin debt as historical percentiles, sector ETF capital rotation, and institutional 13F net buying by sector. Built from public data; not investment advice.",
+    description: "Where the money is leaning: CFTC futures positioning, put/call and margin debt as percentiles, sector fund flows and 13F net buying. Not investment advice.",
   },
   "/macro": {
     tab: "macro",
-    brand: "· Macro &amp; Fiscal",
+    brand: "· Macro and fiscal: fiscal dominance, yield curve and financial stress",
     title: "Macro & Fiscal: fiscal dominance, yield curve, financial stress · Market Stress Monitor",
-    description: "The slower US macro backdrop: a real-data fiscal dominance checklist, the Treasury yield curve with term premium, and financial-stress and funding indicators (OFR FSI, St. Louis Fed FSI, NFCI, SOFR, net liquidity). Built from public data; not investment advice.",
+    description: "The slower US backdrop: a real-data fiscal dominance checklist, the yield curve with term premium, and financial-stress and funding indicators. Not advice.",
   },
   "/views": {
     tab: "analysts",
-    brand: "· Notable Views",
+    brand: "· Notable views: macro investors vs live data",
     title: "Notable Views: macro investors' views vs live data · Market Stress Monitor",
     // Names are filled in from analyst_views.json (viewsDescription) when it loads.
-    description: "Public views of well-known macro investors and economists on debt, rates, the Fed, inflation, recession and markets, each linked and dated and checked against live data.",
+    description: "Public views of well-known macro investors and economists on debt, rates, the Fed and markets, each linked, dated and checked against live data.",
   },
 };
 const TAB_PANELS = ["stressmonitor", "smartmoney", "macro", "analysts"];
 
+// Security headers (2026-11-25, SEO audit). Set here because _headers does
+// not apply to responses from _worker.js. The CSP limits framing, <base> and
+// plugins only: the page relies on inline scripts and styles, so it does not
+// restrict scripts. HSTS, nosniff and Referrer-Policy already come from the
+// zone; nosniff is repeated so it holds even if that setting changes.
+const SECURITY_HEADERS = {
+  "content-security-policy": "frame-ancestors 'self'; base-uri 'self'; object-src 'none'; form-action 'self'",
+  "x-frame-options": "SAMEORIGIN",
+  "x-content-type-options": "nosniff",
+  "permissions-policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+};
+
+function withSecurityHeaders(res) {
+  const out = new Response(res.body, res);
+  for (const [k, v] of Object.entries(SECURITY_HEADERS)) out.headers.set(k, v);
+  return out;
+}
+
 export default {
   async fetch(request, env, ctx) {
-    const url = new URL(request.url);
-    if (url.pathname === "/latest.md") return latestMarkdown(request, ctx);
-    if (url.pathname === "/sitemap.xml") return sitemapXml(request, env, ctx);
-    if (url.pathname === "/feed.xml") return atomFeed(request, ctx);
-    // "/views/" -> "/views": one URL per tab.
-    if (url.pathname.length > 1 && url.pathname.endsWith("/") && TAB_PAGES[url.pathname.replace(/\/+$/, "")]) {
-      return Response.redirect(`${url.origin}${url.pathname.replace(/\/+$/, "")}${url.search}`, 301);
-    }
-    const page = TAB_PAGES[url.pathname] ?? null;
-    if (url.pathname !== "/" && !page) return env.ASSETS.fetch(request);
-    if (request.method === "HEAD") return env.ASSETS.fetch(new Request(new URL("/", url).toString(), { method: "HEAD" }));
-    if (request.method !== "GET") return env.ASSETS.fetch(request);
-
-    // Fetch by URL only, so a browser's If-None-Match can't turn this into a
-    // bodyless 304 for a page whose inserted text has since changed.
-    const asset = await env.ASSETS.fetch(new Request(new URL("/", url).toString()));
-    if (!asset.ok || !(asset.headers.get("content-type") || "").includes("text/html")) return asset;
-    let data = null;
-    try { data = await loadLatest(ctx); } catch (e) { data = null; }
-    // Notable Views text comes from the static JSON, so it needs no Supabase.
-    let views = null;
-    let description = page?.description;
-    // Macro & Fiscal: today's numbers in the description (search snippets
-    // for e.g. "latest 5y5y inflation" showed the tab with no number).
-    if (page?.tab === "macro" && data) {
-      try { description = macroDescription(data) ?? description; } catch (e) { /* keep the static text */ }
-    }
-    if (page?.tab === "analysts") {
-      try {
-        const r = await env.ASSETS.fetch(new Request(new URL("/analyst_views.json", url).toString()));
-        if (r.ok) {
-          const content = await r.json();
-          views = viewsHtml(content);
-          description = viewsDescription(content) ?? description;
-        }
-      } catch (e) { views = null; }
-    }
-    if (!data && !page) return asset;
-
-    const headers = new Headers(asset.headers);
-    headers.delete("etag");
-    headers.delete("content-length");
-    headers.set("cache-control", "public, max-age=0, must-revalidate");
-    let rw = new HTMLRewriter();
-    if (data) {
-      rw = rw
-        .on("#stress-verdict", { element(el) { el.setInnerContent(verdictHtml(data), { html: true }); } })
-        .on("#site-summary", { element(el) { el.append(` ${escHtml(summarySentence(data))}`, { html: true }); } })
-        .on('script[type="application/ld+json"]', datasetDateModified(data.row.run_at));
-      // The home page's description carries today's numbers, so search
-      // snippets, AI answers built on them and link previews show the live
-      // reading rather than a generic blurb (tab pages keep their own).
-      if (!page) {
-        const live = liveDescription(data);
-        rw = rw
-          .on('meta[name="description"]', { element(el) { el.setAttribute("content", live); } })
-          .on('meta[property="og:description"]', { element(el) { el.setAttribute("content", live); } });
-      }
-    }
-    if (page) {
-      const canonical = `${SITE}${url.pathname}`;
-      rw = rw
-        .on("title", { element(el) { el.setInnerContent(page.title); } })
-        .on("#brand-tab", { element(el) { el.setInnerContent(page.brand, { html: true }); } })
-        .on("#horizon", { element(el) { el.setAttribute("data-tab", page.tab); } })
-        .on('meta[name="description"]', { element(el) { el.setAttribute("content", description); } })
-        .on('link[rel="canonical"]', { element(el) { el.setAttribute("href", canonical); } })
-        .on('meta[property="og:url"]', { element(el) { el.setAttribute("content", canonical); } })
-        .on('meta[property="og:title"]', { element(el) { el.setAttribute("content", page.title); } })
-        .on('meta[property="og:description"]', { element(el) { el.setAttribute("content", description); } });
-      for (const id of TAB_PANELS) {
-        rw = rw.on(`#tab-${id}`, { element(el) { if (id === page.tab) el.removeAttribute("hidden"); else el.setAttribute("hidden", ""); } });
-      }
-      if (views) rw = rw.on("#analysts-wrap", { element(el) { el.setInnerContent(views, { html: true }); } });
-      // Smart Money and Macro load everything in the browser, so without
-      // this their HTML was 99% the home page's and Google left them out
-      // ("Crawled - currently not indexed", 2026-11-24). Each verdict block
-      // is replaced whole by the page's own render once its JavaScript runs.
-      if (page.tab === "smartmoney") rw = rw.on("#smart-verdict", { element(el) { el.setInnerContent(SMART_INTRO_HTML, { html: true }); } });
-      if (page.tab === "macro") {
-        let macroHtml = MACRO_INTRO_HTML;
-        if (data) { try { macroHtml = macroVerdictHtml(data); } catch (e) { macroHtml = MACRO_INTRO_HTML; } }
-        rw = rw.on("#macro-verdict", { element(el) { el.setInnerContent(macroHtml, { html: true }); } });
-      }
-    }
-    return rw.transform(new Response(asset.body, { status: asset.status, headers }));
+    return withSecurityHeaders(await route(request, env, ctx));
   },
 };
+
+async function route(request, env, ctx) {
+  const url = new URL(request.url);
+  if (url.pathname === "/latest.md") return latestMarkdown(request, ctx);
+  if (url.pathname === "/sitemap.xml") return sitemapXml(request, env, ctx);
+  if (url.pathname === "/feed.xml") return atomFeed(request, ctx);
+  // "/views/" -> "/views": one URL per tab.
+  if (url.pathname.length > 1 && url.pathname.endsWith("/") && TAB_PAGES[url.pathname.replace(/\/+$/, "")]) {
+    return Response.redirect(`${url.origin}${url.pathname.replace(/\/+$/, "")}${url.search}`, 301);
+  }
+  const page = TAB_PAGES[url.pathname] ?? null;
+  if (url.pathname !== "/" && !page) return env.ASSETS.fetch(request);
+  if (request.method === "HEAD") return env.ASSETS.fetch(new Request(new URL("/", url).toString(), { method: "HEAD" }));
+  if (request.method !== "GET") return env.ASSETS.fetch(request);
+
+  // Fetch by URL only, so a browser's If-None-Match can't turn this into a
+  // bodyless 304 for a page whose inserted text has since changed.
+  const asset = await env.ASSETS.fetch(new Request(new URL("/", url).toString()));
+  if (!asset.ok || !(asset.headers.get("content-type") || "").includes("text/html")) return asset;
+  let data = null;
+  try { data = await loadLatest(ctx); } catch (e) { data = null; }
+  // Notable Views text comes from the static JSON, so it needs no Supabase.
+  let views = null;
+  let description = page?.description;
+  // Macro & Fiscal: today's numbers in the description (search snippets
+  // for e.g. "latest 5y5y inflation" showed the tab with no number).
+  if (page?.tab === "macro" && data) {
+    try { description = macroDescription(data) ?? description; } catch (e) { /* keep the static text */ }
+  }
+  if (page?.tab === "smartmoney" && data?.smart) {
+    try { description = smartDescription(data.smart) ?? description; } catch (e) { /* keep the static text */ }
+  }
+  if (page?.tab === "analysts") {
+    try {
+      const r = await env.ASSETS.fetch(new Request(new URL("/analyst_views.json", url).toString()));
+      if (r.ok) {
+        const content = await r.json();
+        views = viewsHtml(content);
+        description = viewsDescription(content) ?? description;
+      }
+    } catch (e) { views = null; }
+  }
+  if (!data && !page) return asset;
+
+  const headers = new Headers(asset.headers);
+  headers.delete("etag");
+  headers.delete("content-length");
+  headers.set("cache-control", "public, max-age=0, must-revalidate");
+  let rw = new HTMLRewriter();
+  if (data) {
+    rw = rw
+      .on("#stress-verdict", { element(el) { el.setInnerContent(verdictHtml(data), { html: true }); } })
+      // The direct answer first (SEO audit 2026-11-25: no sentence stated
+      // today's verdict with the band), then the static blurb, then the readings.
+      .on("#site-summary", { element(el) {
+        el.prepend(`<span class="answer">${escHtml(answerSentence(data))}</span> `, { html: true });
+        el.append(` ${escHtml(readingLists(facts(data)))}`, { html: true });
+      } })
+      .on('script[type="application/ld+json"]', datasetDateModified(data.row.run_at));
+    // The home page's description carries today's numbers, so search
+    // snippets, AI answers built on them and link previews show the live
+    // reading rather than a generic blurb (tab pages keep their own).
+    if (!page) {
+      const live = liveDescription(data);
+      rw = rw
+        .on('meta[name="description"]', { element(el) { el.setAttribute("content", live); } })
+        .on('meta[property="og:description"]', { element(el) { el.setAttribute("content", live); } });
+    }
+  }
+  if (page) {
+    const canonical = `${SITE}${url.pathname}`;
+    rw = rw
+      .on("title", { element(el) { el.setInnerContent(page.title); } })
+      .on("#brand-tab", { element(el) { el.setInnerContent(page.brand, { html: true }); } })
+      .on("#horizon", { element(el) { el.setAttribute("data-tab", page.tab); } })
+      .on('meta[name="description"]', { element(el) { el.setAttribute("content", description); } })
+      .on('link[rel="canonical"]', { element(el) { el.setAttribute("href", canonical); } })
+      .on('meta[property="og:url"]', { element(el) { el.setAttribute("content", canonical); } })
+      .on('meta[property="og:title"]', { element(el) { el.setAttribute("content", page.title); } })
+      .on('meta[property="og:description"]', { element(el) { el.setAttribute("content", description); } });
+    for (const id of TAB_PANELS) {
+      rw = rw.on(`#tab-${id}`, { element(el) { if (id === page.tab) el.removeAttribute("hidden"); else el.setAttribute("hidden", ""); } });
+    }
+    if (views) rw = rw.on("#analysts-wrap", { element(el) { el.setInnerContent(views, { html: true }); } });
+    // Smart Money and Macro load everything in the browser, so without
+    // this their HTML was 99% the home page's and Google left them out
+    // ("Crawled - currently not indexed", 2026-11-24). Each verdict block
+    // is replaced whole by the page's own render once its JavaScript runs.
+    if (page.tab === "smartmoney") {
+      let smartHtml = SMART_INTRO_HTML;
+      if (data?.smart) { try { smartHtml = smartVerdictHtml(data.smart); } catch (e) { smartHtml = SMART_INTRO_HTML; } }
+      rw = rw.on("#smart-verdict", { element(el) { el.setInnerContent(smartHtml, { html: true }); } });
+    }
+    if (page.tab === "macro") {
+      let macroHtml = MACRO_INTRO_HTML;
+      if (data) { try { macroHtml = macroVerdictHtml(data); } catch (e) { macroHtml = MACRO_INTRO_HTML; } }
+      rw = rw.on("#macro-verdict", { element(el) { el.setInnerContent(macroHtml, { html: true }); } });
+    }
+  }
+  return rw.transform(new Response(asset.body, { status: asset.status, headers }));
+}
 
 async function latestMarkdown(request, ctx) {
   if (request.method !== "GET" && request.method !== "HEAD") return new Response("Method not allowed", { status: 405 });
@@ -331,13 +365,43 @@ function datasetDateModified(iso) {
   };
 }
 
-// e.g. "Nov 24, 2026: 0 of 6 crash-risk indicators confirmed RED. VIX 26.62
-// (amber), high-yield spread 376 bp (amber), … A daily read on US market
-// crash risk from public data; not investment advice."
+// Search results cut descriptions at about 155 characters (SEO audit
+// 2026-11-25), so each one is the head plus as many optional tail parts as fit.
+const DESCRIPTION_MAX = 155;
+function fitDescription(head, tails) {
+  let out = head;
+  for (const t of tails) if (`${out} ${t}`.length <= DESCRIPTION_MAX) out = `${out} ${t}`;
+  return out;
+}
+
+// The band as a short phrase, e.g. "drawdown risk band High (44% of past
+// cases)"; null when it can't be scored or computed.
+function bandPhrase(row) {
+  const { status, band } = ddVixReading(row);
+  if (status === "ALREADY_BREACHED") return "drawdown risk band not scored (S&P 500 already 10%+ off its high)";
+  if (!band) return null;
+  return `drawdown risk band ${DD_VIX_BAND_LABELS[band] ?? band} (${DD_VIX_HIT_RATE[band] ?? "?"} of past cases)`;
+}
+
+// e.g. "Nov 24, 2026: 0 of 6 US crash-risk indicators confirmed RED; drawdown
+// risk band High (44% of past cases). Daily, from public data. Not investment advice."
 function liveDescription(data) {
   const f = facts(data);
-  const list = f.indicators.map((i) => `${i.short} ${i.value} (${String(i.color).toLowerCase()}${i.pending ? ", pending" : ""})`).join(", ");
-  return `${fmtDate(f.asOf, false)}: ${f.confirmed} of 6 crash-risk indicators confirmed RED. ${list.charAt(0).toUpperCase()}${list.slice(1)}. A daily read on US market crash risk from public data; not investment advice.`;
+  const band = bandPhrase(data.row);
+  return fitDescription(`${fmtDate(f.asOf, false)}: ${f.confirmed} of 6 US crash-risk indicators confirmed RED${band ? `; ${band}` : ""}.`,
+    ["Daily, from public data.", "Not investment advice."]);
+}
+
+// The direct answer that opens the footer summary (#site-summary), ~60 words:
+// "As of Nov 25, 2026, 0 of 6 US crash-risk indicators are confirmed RED, so
+// the stress gate (3 of 6) is not met. The drawdown risk band is High: …"
+function answerSentence(data) {
+  const f = facts(data);
+  const parts = [`As of ${fmtDate(f.asOf, false)}, ${f.confirmed} of 6 US crash-risk indicators ${f.confirmed === 1 ? "is" : "are"} confirmed RED, so the stress gate (3 of 6) is ${f.gateMet ? "met" : "not met"}.`];
+  const { status, band } = ddVixReading(data.row);
+  if (status === "ALREADY_BREACHED") parts.push("The drawdown risk band is not scored, because the S&P 500 is already more than 10% below its high.");
+  else if (band) parts.push(`The drawdown risk band is ${DD_VIX_BAND_LABELS[band] ?? band}: historically, ${DD_VIX_HIT_RATE[band] ?? "an unknown share"} of days in this band were followed by a 10%+ S&P 500 drawdown within about a month, against 12% on a typical day.`);
+  return parts.join(" ");
 }
 
 // ---- Data -----------------------------------------------------------------
@@ -347,7 +411,10 @@ async function loadLatest(ctx) {
   const hit = await cache.match(CACHE_KEY);
   if (hit) return hit.json();
   const since = new Date(Date.now() - CONTEXT_LOOKBACK_DAYS * 86400000).toISOString().slice(0, 10);
-  const [latest, full, context, macro] = await Promise.all([
+  // Margin debt: 430 days (month-start dates), since its growth needs the same month a year
+  // earlier. The rest: 90 days covers ten put/call days and the latest COT week.
+  const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
+  const [latest, full, context, macro, smartRecent, smartMargin] = await Promise.all([
     supabase(`crash_checks?select=${LATEST_FIELDS}&order=run_at.desc&limit=1`),
     supabase("crash_checks?select=run_at,notes,scenario_method,scenario_prior_state,scenario_tilt,scenario_bear_pct,scenario_crash_pct&notes=not.is.null&order=run_at.desc&limit=1"),
     // Context is optional: a failure here must not take down the reading.
@@ -355,12 +422,17 @@ async function loadLatest(ctx) {
     // Macro & Fiscal narrative (index.html loadMacroNarrative): optional too,
     // and absent before its migration.
     supabase("crash_checks?select=run_at,macro_narrative&macro_narrative=not.is.null&order=run_at.desc&limit=1").catch(() => []),
+    // Smart Money raw readings (optional, like context): ~120 small rows.
+    supabase(`data_points?select=series_id,observation_date,value&series_id=in.(${SMART_SERIES.join(",")})&observation_date=gte.${daysAgo(90)}&order=observation_date.desc`).catch(() => []),
+    supabase(`data_points?select=series_id,observation_date,value&series_id=eq.${SMART_MARGIN}&observation_date=gte.${daysAgo(430)}&order=observation_date.desc`).catch(() => []),
   ]);
   if (!latest[0]) return null;
   // Rows come newest first: the first per series is the latest, the last the oldest in the window.
   const ctxLatest = {}, ctxOldest = {};
   for (const r of context) { if (!(r.series_id in ctxLatest)) ctxLatest[r.series_id] = r; ctxOldest[r.series_id] = r; }
-  const data = { row: latest[0], full: full[0] ?? null, context: ctxLatest, contextOldest: ctxOldest, macro: macro[0] ?? null };
+  let smart = null;
+  try { smart = smartFacts([...smartRecent, ...smartMargin]); } catch (e) { smart = null; }
+  const data = { row: latest[0], full: full[0] ?? null, context: ctxLatest, contextOldest: ctxOldest, macro: macro[0] ?? null, smart };
   ctx.waitUntil(cache.put(CACHE_KEY, new Response(JSON.stringify(data), {
     headers: { "content-type": "application/json", "cache-control": `public, max-age=${CACHE_SECONDS}` },
   })));
@@ -407,19 +479,20 @@ function macroFacts(data) {
   return f;
 }
 
-// e.g. "Nov 24, 2026 macro backdrop: 5y5y forward inflation expectation 2.13%
-// (from Treasury and TIPS yields), …". Null when none of the series loaded.
+// Short form of the above for the /macro meta description (<= 155 chars):
+// the date, the two most-searched numbers, then what else the tab has.
 function macroDescription(data) {
   const m = macroFacts(data);
-  const parts = [];
-  if (m.fwd) parts.push(`5y5y forward inflation expectation ${m.fwd.v.toFixed(2)}% (from Treasury and TIPS yields)`);
-  if (m.be) parts.push(`10-year breakeven ${m.be.v.toFixed(2)}%`);
-  if (m.tp) parts.push(`10-year term premium ${m.tp.v.toFixed(2)}%`);
-  if (m.bs) parts.push(`Fed balance sheet ${m.bs.text}${m.bs.trend ? `, ${m.bs.trend}` : ""}`);
-  if (m.ofr) parts.push(`OFR Financial Stress Index ${m.ofr.v.toFixed(2)} (${m.ofr.v > 0 ? "above" : "below"} average)`);
-  if (!parts.length) return null;
-  const day = m.fwd?.d ?? m.be?.d ?? m.ofr?.d;
-  return `${day ? `${fmtDate(`${day}T12:00:00Z`, false)} macro backdrop: ` : "Macro backdrop: "}${parts.join(", ")}. Plus a fiscal dominance checklist and the Treasury yield curve. Public data; not investment advice.`;
+  const nums = [
+    m.fwd && `5y5y inflation expectation ${m.fwd.v.toFixed(2)}%`,
+    m.tp && `10-year term premium ${m.tp.v.toFixed(2)}%`,
+    m.ofr && `OFR stress index ${m.ofr.v.toFixed(2)}`,
+  ].filter(Boolean);
+  if (!nums.length) return null;
+  const day = m.fwd?.d ?? m.tp?.d ?? m.ofr?.d;
+  let head = `${fmtDate(`${day}T12:00:00Z`, false)}: ${nums[0]}`;
+  for (const n of nums.slice(1)) if (`${head}, ${n}.`.length <= 110) head = `${head}, ${n}`;
+  return fitDescription(`${head}.`, ["Fiscal dominance checklist and yield curve.", "Not advice."]);
 }
 
 function contextLines(ctx, oldest) {
@@ -497,28 +570,44 @@ function escHtml(s) {
 
 // ---- HTML -----------------------------------------------------------------
 
-// Mirrors the headline part of renderStressVerdict() in index.html, which
-// replaces it once the page's JavaScript runs.
+// Mirrors renderStressVerdict() in index.html (without its popovers), which
+// replaces it once the page's JavaScript runs. Includes the drawdown risk
+// band, so crawlers and AI tools see it (SEO audit 2026-11-25).
 function verdictHtml(data) {
   const f = facts(data);
+  const row = data.row;
   const gate = f.gateMet ? '<b class="bad">Stress gate met</b>' : '<b class="ok">Stress gate not met</b>';
+  const { status, band } = ddVixReading(row);
+  const hazard = status === "ALREADY_BREACHED" ? "Not scored <small>past 10%</small>"
+    : band ? `<span class="dot bc-${escHtml(band)}" style="background:var(--bc)"></span>${escHtml(DD_VIX_BAND_LABELS[band] ?? band)} <small>${escHtml(DD_VIX_HIT_RATE[band] ?? "")} of past cases</small>` : "Unavailable";
+  const w = row.warsh_classification;
+  const regime = w ? `${escHtml(w.charAt(0) + w.slice(1).toLowerCase())} <small>${row.warsh_hard_rules_active ? "hard rules on" : "hard rules off"}</small>` : "—";
   return `<div class="headline"><div class="big">${f.confirmed}<em>/6</em> red</div>`
     + `<div class="sub">${gate} · gate needs 3 of 6 confirmed${f.pending ? ` · <b class="warn">${f.pending} pending</b>` : ""}</div></div>`
-    + `<div class="facts"></div><div class="stamp"><b>As of ${escHtml(fmtDate(f.asOf, true))}</b></div>`;
+    + `<div class="facts"><div class="fact"><span class="lbl">Drawdown risk · 10% off peak, next month</span><span class="v">${hazard}</span></div>`
+    + `<div class="fact"><span class="lbl">Fed regime</span><span class="v">${regime}</span></div></div>`
+    + `<div class="stamp"><b>As of ${escHtml(fmtDate(f.asOf, true))}</b></div>`;
 }
 
-// One plain sentence for the footer, e.g. "Latest reading (Nov 15, 2026):
-// 0 of 6 confirmed RED, stress gate not met. RED: 10-year Treasury yield
-// 5.10% (pending confirmation). GREEN: VIX 19.30, high-yield spread …"
-function summarySentence(data) {
-  const f = facts(data);
-  const parts = [`Latest reading (${fmtDate(f.asOf, false)}): ${f.confirmed} of 6 confirmed RED, stress gate ${f.gateMet ? "met" : "not met"}.`];
+// "Readings: AMBER: VIX 26.62, high-yield spread 376 bp. GREEN: …." (the
+// footer's list, after the answer sentence).
+function readingLists(f) {
+  const parts = [];
   for (const color of ["RED", "AMBER", "GREEN"]) {
     const list = f.indicators.filter((i) => i.color === color)
       .map((i) => `${i.short} ${i.value}${i.pending ? " (pending confirmation)" : ""}`);
     if (list.length) parts.push(`${color}: ${list.join(", ")}.`);
   }
-  return parts.join(" ");
+  return parts.length ? `Readings: ${parts.join(" ")}` : "";
+}
+
+// One plain sentence for the feed, e.g. "Latest reading (Nov 15, 2026):
+// 0 of 6 confirmed RED, stress gate not met. RED: 10-year Treasury yield
+// 5.10% (pending confirmation). GREEN: VIX 19.30, high-yield spread …"
+function summarySentence(data) {
+  const f = facts(data);
+  const lists = readingLists(f).replace(/^Readings: /, "");
+  return `Latest reading (${fmtDate(f.asOf, false)}): ${f.confirmed} of 6 confirmed RED, stress gate ${f.gateMet ? "met" : "not met"}.${lists ? ` ${lists}` : ""}`;
 }
 
 // ---- Smart Money / Macro text for crawlers --------------------------------
@@ -534,6 +623,73 @@ const SMART_INTRO_HTML = `<div class="headline"><div class="big">Where the money
 <p><b>Institutional 13F net buying.</b> Which sectors' stocks big institutions bought more of last quarter than the average sector, from every 13F filer's holdings, counted in shares so price moves don't count. Quarterly and 45+ days late: it shows what institutions backed last quarter, not what is happening now.</p>
 <p>Sources: CFTC, CBOE, FINRA, SEC EDGAR, fund share data. Public data; not investment advice.</p>
 </div>`;
+
+// Latest raw Smart Money readings for crawlers (SEO audit 2026-11-25: the
+// tab had no numbers in its HTML). Raw values only: the percentiles need
+// years of history and load in the browser. Series, labels and the put/call
+// 10-day average / margin growth formulas mirror POSITIONING_MEASURES and
+// positioningDerivedSeries in index.html; change them together.
+const SMART_COT = [
+  ["COT_ES_ASSET_MGR_NET_PCT_OI", "Asset managers, S&P 500 futures"],
+  ["COT_ES_LEV_FUNDS_NET_PCT_OI", "Hedge funds, S&P 500 futures"],
+  ["COT_VIX_LEV_FUNDS_NET_PCT_OI", "Hedge funds, VIX futures"],
+  ["COT_TY_LEV_FUNDS_NET_PCT_OI", "Leveraged funds, 10-year Treasury futures"],
+  ["COT_JY_LEV_FUNDS_NET_PCT_OI", "Hedge funds, yen futures"],
+];
+const SMART_PUT_CALL = "CBOE_EQUITY_PC_RATIO";
+const SMART_MARGIN = "FINRA_MARGIN_DEBIT_USD_MILLIONS";
+const SMART_SERIES = [...SMART_COT.map(([id]) => id), SMART_PUT_CALL];
+
+// rows: any order. Returns null when nothing loaded.
+function smartFacts(rows) {
+  const by = {};
+  for (const r of rows) (by[r.series_id] ??= []).push({ d: r.observation_date, v: Number(r.value) });
+  for (const k of Object.keys(by)) by[k].sort((a, b) => (a.d < b.d ? 1 : -1)); // newest first
+  const cot = SMART_COT.filter(([id]) => by[id]?.length).map(([id, label]) => ({ label, v: by[id][0].v, d: by[id][0].d }));
+  const pc = by[SMART_PUT_CALL] ?? [];
+  const putCall = pc.length >= 10 ? { v: pc.slice(0, 10).reduce((a, p) => a + p.v, 0) / 10, d: pc[0].d } : null;
+  const mg = by[SMART_MARGIN] ?? [];
+  let margin = null;
+  if (mg.length) {
+    const now = mg[0];
+    const prior = mg.find((p) => p.d.slice(0, 7) === `${Number(now.d.slice(0, 4)) - 1}${now.d.slice(4, 7)}`);
+    margin = { usdT: now.v / 1e6, yoy: prior ? ((now.v - prior.v) / prior.v) * 100 : null, d: now.d };
+  }
+  if (!cot.length && !putCall && !margin) return null;
+  return { cot, putCall, margin };
+}
+
+const fmtDay = (d) => fmtDate(`${d}T12:00:00Z`, false);
+const fmtMonthYear = (d) => new Date(`${d.slice(0, 7)}-01T12:00:00Z`).toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
+const signedPct = (v) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(1)}%`;
+
+function smartVerdictHtml(s) {
+  const fact = (lbl, v, small) => `<div class="fact context"><span class="lbl">${escHtml(lbl)}</span><span class="v">${escHtml(v)}${small ? ` <small>${escHtml(small)}</small>` : ""}</span></div>`;
+  const facts = [
+    s.putCall && fact("Equity put/call", s.putCall.v.toFixed(2), `10-day avg · ${s.putCall.d}`),
+    s.margin && fact("Margin debt", `$${s.margin.usdT.toFixed(2)}T`, `${s.margin.yoy != null ? `${signedPct(s.margin.yoy)} vs a year ago · ` : ""}${fmtMonthYear(s.margin.d)}`),
+  ].filter(Boolean).join("");
+  const cotDay = s.cot.map((c) => c.d).sort().at(-1);
+  const cot = s.cot.length
+    ? `<p><b>Futures positioning</b> (CFTC Commitments of Traders, net position as a share of open interest, week of ${escHtml(fmtDay(cotDay))}): ${s.cot.map((c) => `${escHtml(c.label)} ${escHtml(signedPct(c.v))}`).join("; ")}.</p>`
+    : "";
+  // The intro's paragraphs, without its headline (this one has its own).
+  const intro = SMART_INTRO_HTML.slice(SMART_INTRO_HTML.indexOf('<div class="nar">') + '<div class="nar">'.length);
+  return `<div class="headline"><div class="big">Where the money is leaning</div><div class="sub">Positioning and flows · weeks to quarters</div></div>`
+    + `<div class="facts">${facts}</div><div class="nar">${cot}<p>Latest raw readings; where each sits in its own history (the percentiles) loads with the page.</p>${intro}`;
+}
+
+// e.g. "Nov 24, 2026: equity put/call 0.62 (10-day), margin debt +18.0% vs a
+// year ago. CFTC positioning percentiles and 13F net buying by sector. …"
+function smartDescription(s) {
+  const nums = [
+    s.putCall && `equity put/call ${s.putCall.v.toFixed(2)} (10-day)`,
+    s.margin?.yoy != null && `margin debt ${signedPct(s.margin.yoy)} vs a year ago`,
+  ].filter(Boolean);
+  if (!nums.length) return null;
+  const day = s.putCall?.d ?? s.margin.d;
+  return fitDescription(`${fmtDay(day)}: ${nums.join(", ")}.`, ["CFTC positioning percentiles and 13F net buying by sector.", "Not investment advice."]);
+}
 
 const MACRO_INTRO_HTML = `<div class="headline"><div class="big">Macro &amp; Fiscal</div>
 <div class="sub">The slower US backdrop · quarters to years</div></div>
@@ -569,7 +725,8 @@ function viewsDescription(content) {
   const names = (content.analysts ?? []).map((a) => a.name).filter(Boolean);
   if (!names.length) return null;
   const who = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names[0];
-  return `Public views of ${who} on debt, rates, the Fed, inflation, recession and markets, each linked and dated and checked against live data.`;
+  const text = `Public views of ${who} on debt, rates, the Fed and markets, each linked, dated and checked against live data.`;
+  return text.length <= DESCRIPTION_MAX ? text : null;
 }
 
 function viewsHtml(content) {

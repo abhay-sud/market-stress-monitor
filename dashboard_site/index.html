@@ -4,8 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Market Stress Monitor: daily crash-risk indicators</title>
-<meta name="description" content="A daily RED/AMBER/GREEN read on market crash risk: VIX, high-yield credit spreads, S&amp;P 500 drawdown, the 10-year Treasury yield, the Sahm rule and Fed policy, plus positioning, smart-money and fiscal context. Built from public data; not investment advice.">
+<meta name="description" content="A daily RED/AMBER/GREEN read on US market crash risk: VIX, credit spreads, S&amp;P 500 drawdown, 10-year yield, Sahm rule and the Fed. Not investment advice.">
 <link rel="canonical" href="https://marketstress.org/">
+<link rel="preconnect" href="https://jophlgbijfahmytkrjly.supabase.co" crossorigin>
 <link rel="alternate" type="text/markdown" href="/latest.md" title="Latest reading as plain text">
 <link rel="alternate" type="application/atom+xml" href="/feed.xml" title="Market Stress Monitor: daily reading">
 <meta property="og:type" content="website">
@@ -515,6 +516,8 @@
   #report-view + .rsec { border-top:1px solid var(--hair); margin-top:14px; }
   .sh { display:flex; align-items:baseline; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
   .sh .lbl { color:var(--text-secondary); }
+  /* Section labels are real h2s (2026-11-25, SEO audit): same look as the old spans. */
+  .sh h2.lbl { margin:0; }
   .sh .note { font:var(--t3); color:var(--text-muted); }
   .sh .right { margin-left:auto; font:var(--t3); color:var(--text-muted); display:flex; gap:12px; align-items:center; }
   .foot { font:var(--t3); color:var(--text-muted); margin-top:8px; display:flex; gap:14px; flex-wrap:wrap; }
@@ -991,7 +994,7 @@
 <div class="wrap">
   <header class="topbar">
     <div class="topleft">
-      <h1 class="brand">Stress Monitor <i id="brand-tab">· Crash Risk</i></h1>
+      <h1 class="brand">Stress Monitor <i id="brand-tab">· US market crash-risk indicators today</i></h1>
       <a class="howlink" href="/how-it-works">How it works</a>
     </div>
     <nav class="tab-bar" id="tab-bar" aria-label="Sections">
@@ -1035,7 +1038,7 @@
       <main class="col-main">
         <div id="report-view"><p class="loading">Loading…</p></div>
         <section class="rsec" id="section-history">
-          <div class="sh"><span class="lbl">Indicator history</span><span class="note">Full history with the RED / AMBER / GREEN bands</span>
+          <div class="sh"><h2 class="lbl">Indicator history</h2><span class="note">Full history with the RED / AMBER / GREEN bands</span>
             <button class="right hidebtn" id="indicator-history-toggle" aria-expanded="false" aria-controls="indicator-history-body">Show</button></div>
           <div id="indicator-history-body" class="history-charts" hidden>
             <div id="chart-vix"></div>
@@ -1056,7 +1059,7 @@
     <div class="cols one">
       <main class="col-main">
         <section class="rsec" id="section-positioning">
-          <div class="sh"><span class="lbl">Market positioning</span><span class="note">How crowded are the main bets?</span><button class="info" popovertarget="i-pos" aria-label="About market positioning">ⓘ</button></div>
+          <div class="sh"><h2 class="lbl">Market positioning</h2><span class="note">How crowded are the main bets?</span><button class="info" popovertarget="i-pos" aria-label="About market positioning">ⓘ</button></div>
           <div id="positioning-wrap"><p class="loading">Loading…</p></div>
         </section>
         <section class="rsec" id="section-sector">
@@ -1072,11 +1075,11 @@
     <div class="cols">
       <main class="col-main">
         <section class="rsec" id="section-fiscaldominance">
-          <div class="sh"><span class="lbl">Fiscal dominance regime checklist</span><span class="note">Is Fed policy constrained by the debt burden, not just whether debt is high?</span><button class="info" popovertarget="i-fd" aria-label="About the fiscal dominance checklist">ⓘ</button></div>
+          <div class="sh"><h2 class="lbl" id="fiscal-dominance-checklist">Fiscal dominance checklist</h2><span class="note">Is Fed policy constrained by the debt burden, not just whether debt is high?</span><button class="info" popovertarget="i-fd" aria-label="About the fiscal dominance checklist">ⓘ</button></div>
           <div id="fiscaldominance-wrap"><p class="loading">Loading…</p></div>
         </section>
         <section class="rsec" id="section-context">
-          <div class="sh"><span class="lbl">Contextual indicators</span><span class="note" id="context-note">Latest reading per series</span><button class="info" popovertarget="i-ctx" aria-label="About contextual indicators">ⓘ</button>
+          <div class="sh"><h2 class="lbl">Contextual indicators</h2><span class="note" id="context-note">Latest reading per series</span><button class="info" popovertarget="i-ctx" aria-label="About contextual indicators">ⓘ</button>
             <button class="right hidebtn" id="context-toggle" aria-expanded="true" aria-controls="context-grid">Hide</button></div>
           <p class="ctx-sum" id="context-summary"></p>
           <div id="context-grid" class="ctx-body"><p class="loading">Loading…</p></div>
@@ -1085,12 +1088,12 @@
       <aside class="col-rail">
         <section class="rsec" id="section-macro-nar" hidden></section>
         <section class="rsec" id="section-bondyields">
-          <div class="sh"><span class="lbl">Yield curve</span><span class="note">3M · 2Y · 10Y · 30Y</span><button class="info" popovertarget="i-yc" aria-label="About the yield curve">ⓘ</button></div>
+          <div class="sh"><h2 class="lbl">Yield curve</h2><span class="note">3M · 2Y · 10Y · 30Y</span><button class="info" popovertarget="i-yc" aria-label="About the yield curve">ⓘ</button></div>
           <div id="bondyields-wrap"><p class="loading">Loading…</p></div>
           <div id="ratesdecomp-wrap"></div>
         </section>
         <section class="rsec" id="section-globalbonds">
-          <div class="sh"><span class="lbl">Global bonds</span><span class="note">US · Germany · Japan 10Y, 12 months</span><button class="info" popovertarget="i-gb" aria-label="About global bonds">ⓘ</button></div>
+          <div class="sh"><h2 class="lbl">Global bonds</h2><span class="note">US · Germany · Japan 10Y, 12 months</span><button class="info" popovertarget="i-gb" aria-label="About global bonds">ⓘ</button></div>
           <div id="globalbonds-wrap"><p class="loading">Loading…</p></div>
         </section>
       </aside>
@@ -3175,7 +3178,7 @@ function renderSectorRotation(bySymbol) {
   const key = [-20, -4, 4, 20].map((v) => `<i style="background:rgba(var(--${v > 0 ? "up" : "dn"}-rgb),${(Math.min(Math.abs(v) / 20, 1) * 0.4 + 0.05).toFixed(2)})"></i>`);
 
   wrap.innerHTML = `
-    <div class="sh"><span class="lbl">Sector capital rotation</span><span class="note">Is real money backing each sector's price move?</span>${ib("i-rot", "sector rotation")}
+    <div class="sh"><h2 class="lbl">Sector capital rotation</h2><span class="note">Is real money backing each sector's price move?</span>${ib("i-rot", "sector rotation")}
       <span class="right ctrls"><label class="tgl"><input type="checkbox" id="rot-cmp"${rotationCompare ? " checked" : ""}><span>Compare to market</span></label><span class="wseg" role="radiogroup" aria-label="Chart window">${wseg}</span></span></div>
     ${rotationCompare ? '<p class="cmp-note">Dashed lines = the S&amp;P 500\'s own return and flow. Right of the vertical line = beat the market. Above the horizontal line = drew more money than the market, relative to size.</p>' : ""}
     <div class="rot-top"><div class="rot-chart">${rotationQuadrantSvg(bySymbol, w, rotationCompare)}${ROT_HIST.size ? `<p class="rq-hint">Click a sector to replay its last ${w} days</p>` : ""}</div><div class="mem">${rotationMembership(bySymbol, w)}</div></div>
@@ -3330,7 +3333,7 @@ async function loadMacroNarrative() {
     const [r] = await fetchFromSupabase("crash_checks?select=run_at,macro_narrative&macro_narrative=not.is.null&order=run_at.desc&limit=1");
     if (!r?.macro_narrative) return;
     const written = new Date(r.run_at).toLocaleDateString("en-US", { timeZone: "America/New_York", month: "short", day: "numeric" });
-    el.innerHTML = `<div class="sh"><span class="lbl">What it adds up to</span>${AI_MARK}<span class="note">Written ${written} · rewritten when the data underneath changes</span></div>
+    el.innerHTML = `<div class="sh"><h2 class="lbl">What it adds up to</h2>${AI_MARK}<span class="note">Written ${written} · rewritten when the data underneath changes</span></div>
       <div class="nar">${toParagraphs(r.macro_narrative).map((para) => `<p>${escHtml(para)}</p>`).join("")}</div>`;
     el.hidden = false;
   } catch {
@@ -4005,7 +4008,7 @@ function renderGateLedger(row, idx) {
     </div>`;
   }).join("");
   return `<section class="rsec" id="section-indicators">
-    <div class="sh"><span class="lbl">Gate panel</span><span class="note">Deterministic · the 3-of-6 stress gate</span>${ib("i-gate", "the stress gate")}</div>
+    <div class="sh"><h2 class="lbl">Gate panel</h2><span class="note">Deterministic · the 3-of-6 stress gate</span>${ib("i-gate", "the stress gate")}</div>
     <div class="ledger" role="table" aria-label="Six-indicator gate">
       <div class="row hdr" role="row"><span>Indicator</span><span class="r">Value</span><span class="r">Δ vs ${w7 ? fmtMd(w7.run_at) : "—"}</span><span>60-day</span><span class="r">Green if</span><span>Status</span><span class="r">Streak</span></div>
       ${rows}
@@ -4044,7 +4047,7 @@ function renderDistanceToRed(row) {
     <p><b>Why it matters.</b> It shows which indicator is closest to flipping before it does. A reading has to sit above the red line on ${dtr?.required_confirmation_days ?? 2} separate dates before it counts.</p>
     <p><b>What it doesn't mean.</b> One red indicator doesn't meet the stress gate. That takes 3 of the 6 at confirmed red at the same time.</p>
     <p class="fine">Red means strictly above the line, so a reading exactly on it is still amber. For the S&amp;P, the distance is in percentage points of drawdown; the hover text gives how far the index itself would have to fall. "Closest" compares how far each reading has moved from zero toward its red line, with the amber line as the halfway mark.</p>`);
-  const head = `<div class="sh"><span class="lbl">Distance to red</span><span class="note">Same thresholds as the gate · context, not a signal</span>${ib("i-dtr", "distance to red")}</div>`;
+  const head = `<div class="sh"><h2 class="lbl">Distance to red</h2><span class="note">Same thresholds as the gate · context, not a signal</span>${ib("i-dtr", "distance to red")}</div>`;
   if (!dtr?.indicators) {
     return `<section class="rsec" id="section-distance">${head}<p class="dtr-na">Not computed for this date. This view starts with runs from November 13, 2026.</p>${pop}</section>`;
   }
@@ -4136,7 +4139,7 @@ function renderRiskBandSection(row) {
     <p><b>How to use it.</b> As context, not a trigger: it doesn't count toward the 3-of-6 stress gate. It mostly picks up a market that is already sliding or nervous. High came before 20 of the 21 such drops since 1994, typically about three weeks ahead, but only 1–3 days ahead of sudden ones (2015, early 2018, 2020). More than half of High days were not followed by a 10% drop, and the band says nothing about how deep a fall would go.</p>
     <p><b>The AI view builds on it.</b> Each full report starts from how days in this band have played out over the next 3 months, and the AI can move that one step if it sees something drawdown and VIX don't.</p>`, true);
   return `<section class="rsec" id="section-hazard">
-    <div class="sh"><span class="lbl">Drawdown risk band</span><span class="note">Could the S&amp;P end up 10% below its peak within a month?</span>${ib("i-hazard", "the drawdown risk band")}</div>
+    <div class="sh"><h2 class="lbl">Drawdown risk band</h2><span class="note">Could the S&amp;P end up 10% below its peak within a month?</span>${ib("i-hazard", "the drawdown risk band")}</div>
     ${body}${pop}
   </section>`;
 }
@@ -4187,7 +4190,7 @@ function renderProbabilitySection(selected, idx) {
   const reasons = Array.isArray(row.scenario_tilt_reasons) && row.scenario_tilt_reasons.length
     ? `<ul class="tilt-reasons">${row.scenario_tilt_reasons.map((r) => `<li>${escHtml(r)}</li>`).join("")}</ul>` : "";
   return `<section class="rsec" id="section-probability">
-    <div class="sh"><span class="lbl">Next 3 months · AI view</span>${AI_MARK}<span class="note">Could the S&amp;P fall another 10% from today's level?</span>${ib("i-llm", "the AI view")}</div>
+    <div class="sh"><h2 class="lbl">Next 3 months · AI view</h2>${AI_MARK}<span class="note">Could the S&amp;P fall another 10% from today's level?</span>${ib("i-llm", "the AI view")}</div>
     ${from}<div class="hz-read">Since 1990, <b>${hist}%</b> of ${escHtml(stateName)} days were followed by the S&amp;P falling 10% or more from that day's close within the next 3 months. ${verdict}</div>
     ${reasons}
   </section>`;
@@ -4249,15 +4252,15 @@ function renderRail(row, idx) {
       <span class="e">${tag}${escHtml(title ?? "")}${note.trim() ? `<small class="clamp" title="${escHtml(note.trim())}">${escHtml(note.trim())}</small>` : ""}</span></li>`;
   };
   const triggerHtml = triggers.length
-    ? `${upcoming.length ? `<section class="rsec" id="section-triggers"><div class="sh"><span class="lbl">Catalysts</span><span class="note">upcoming</span></div><ul class="tl">${upcoming.map((p) => item(p, true)).join("")}</ul></section>` : ""}
-       ${fired.length ? `<section class="rsec"${upcoming.length ? "" : ' id="section-triggers"'}><div class="sh"><span class="lbl">Recently fired</span></div><ul class="tl">${fired.slice(0, 6).map((p) => item(p, false)).join("")}</ul></section>` : ""}`
+    ? `${upcoming.length ? `<section class="rsec" id="section-triggers"><div class="sh"><h2 class="lbl">Catalysts</h2><span class="note">upcoming</span></div><ul class="tl">${upcoming.map((p) => item(p, true)).join("")}</ul></section>` : ""}
+       ${fired.length ? `<section class="rsec"${upcoming.length ? "" : ' id="section-triggers"'}><div class="sh"><h2 class="lbl">Recently fired</h2></div><ul class="tl">${fired.slice(0, 6).map((p) => item(p, false)).join("")}</ul></section>` : ""}`
     : "";
   const narRow = fromLatestReport(row, idx, (r) => !!r?.notes);
   const notes = narRow
     ? `${narRow !== row ? fromReportNote(narRow) : ""}<div class="nar${narRow.notes.length > 700 ? " long" : ""}" id="nar-text">${toParagraphs(stripRunLabel(narRow.notes)).map((para) => `<p>${escHtml(para)}</p>`).join("")}</div>${narRow.notes.length > 700 ? '<button class="nar-more" type="button" id="nar-more">Read the full narrative</button>' : ""}`
     : '<p class="nar auto">None for this entry: an automated indicator refresh, not a chat-triggered report.</p>';
   return `${triggerHtml}${renderDivergenceRail(row)}
-    <section class="rsec" id="section-notes"><div class="sh"><span class="lbl">Narrative</span>${narRow ? AI_MARK : ""}</div>${notes}</section>`;
+    <section class="rsec" id="section-notes"><div class="sh"><h2 class="lbl">Narrative</h2>${narRow ? AI_MARK : ""}</div>${notes}</section>`;
 }
 
 const DIVERGENCE_SHORT = {
@@ -4299,7 +4302,7 @@ function renderDivergenceRail(row) {
     </div>`;
   };
   return `<section class="rsec" id="section-signals">
-    <div class="sh"><span class="lbl">Divergences</span><span class="note">${flagged} of ${flags.length} flagged</span></div>
+    <div class="sh"><h2 class="lbl">Divergences</h2><span class="note">${flagged} of ${flags.length} flagged</span></div>
     ${hits.map(card).join("")}
     ${clean.length ? `<details class="clean"${hits.length ? "" : " open"}><summary>${clean.length} relationship${clean.length === 1 ? "" : "s"} clean</summary><ul>${clean.map((f) => `<li>${DIVERGENCE_SHORT[f.pair] ?? escHtml(f.pair)}${ib(pid(f), DIVERGENCE_SHORT[f.pair] ?? f.pair)}</li>`).join("")}</ul></details>` : ""}
     ${pops}
@@ -4894,11 +4897,13 @@ const TAB_TITLES = {
 };
 // The header's grey subtitle (#brand-tab) names the tab you're on; _worker.js
 // copies these (TAB_PAGES[...].brand) so the served HTML matches.
+// Visually hidden (CSS .brand i), so it can read as the page h1 for search
+// engines and screen readers (2026-11-25, SEO audit).
 const TAB_BRANDS = {
-  stressmonitor: "· Crash Risk",
-  smartmoney: "· Smart Money",
-  macro: "· Macro & Fiscal",
-  analysts: "· Notable Views",
+  stressmonitor: "· US market crash-risk indicators today",
+  smartmoney: "· Smart money: market positioning and 13F flows",
+  macro: "· Macro and fiscal: fiscal dominance, yield curve and financial stress",
+  analysts: "· Notable views: macro investors vs live data",
 };
 const tabFromPath = (path) => Object.keys(TAB_PATHS).find((id) => TAB_PATHS[id] === path.replace(/\/+$/, "") || (id === "stressmonitor" && path === "/"));
 
@@ -5401,7 +5406,7 @@ async function renderAnalystViews(row) {
     }).join("");
 
     wrap.innerHTML = `
-      <section class="rsec"><div class="sh"><span class="lbl">Views vs data</span><span class="note">Each view is checked over the window it looks ahead: today, past 12 months, or multi-year</span></div>
+      <section class="rsec"><div class="sh"><h2 class="lbl">Views vs data</h2><span class="note">Each view is checked over the window it looks ahead: today, past 12 months, or multi-year</span></div>
         <div class="ht-wrap"><table class="mx"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div>
         <div class="keyrow"><span><i class="g a"></i>Agrees</span><span><i class="g p"></i>Partly</span><span><i class="g d"></i>Differs</span><span><i class="g n"></i>Not priced in yet</span><span>· No view</span>
           <span><span class="abar" style="width:48px"><i class="a" style="width:50%"></i><i class="p" style="width:25%"></i><i class="d" style="width:25%"></i></span>Bar = share of that topic's views</span><span>Click a row to jump to the quotes</span></div></section>
@@ -5411,14 +5416,14 @@ async function renderAnalystViews(row) {
     const differs = evaluated.filter((e) => e.m === "d" || e.m === "n");
     const pops = people.map((a) => popHtml(`p-${a.id}`, escHtml(a.name), `<p><b>${escHtml(a.role)}.</b> ${escHtml(a.lens)}</p><p>Views as of ${escHtml(fmtDate(a.views_as_of))}.${a.stale ? ` <b>Older than ${ANALYST_STALE_DAYS} days, may be out of date.</b>` : ""}</p>`)).join("");
     document.getElementById("analysts-rail").innerHTML = `
-      <section class="rsec"><div class="sh"><span class="lbl">Who's here</span><span class="note">click a name to show only their views</span></div>
+      <section class="rsec"><div class="sh"><h2 class="lbl">Who's here</h2><span class="note">click a name to show only their views</span></div>
         <ul class="tl roster">${people.map((a) => `<li data-person="${escHtml(a.id)}"><span class="av">${escHtml(a.initials)}</span>
           <button class="e" type="button" data-person="${escHtml(a.id)}"><b>${escHtml(a.name)}</b><small>${escHtml(a.role)}</small></button>
           <span class="st2${a.stale ? " old" : ""}">${a.stale ? "⚠ " : ""}${escHtml(fmtDate(a.views_as_of).replace(/, \d{4}$/, ""))} ${ib(`p-${a.id}`, a.name)}</span></li>`).join("")}</ul>
         <button class="roster-all nv-off" type="button" id="nv-all">Show everyone</button>
         <p class="nar" style="margin-top:10px">⚠ = views older than ${ANALYST_STALE_DAYS} days, may be out of date.</p></section>
-      ${differs.length ? `<section class="rsec"><div class="sh"><span class="lbl">Where the data differs</span></div><ul class="tl">${differs.map((e) => `<li><span class="d">${escHtml(shortName(e.a))}</span><span class="e">${escHtml(content.topics.find((x) => x.id === e.t.topic)?.title ?? "")}<small class="clamp">${e.r.reading}</small></span></li>`).join("")}</ul></section>` : ""}
-      <section class="rsec"><div class="sh"><span class="lbl">About</span></div>
+      ${differs.length ? `<section class="rsec"><div class="sh"><h2 class="lbl">Where the data differs</h2></div><ul class="tl">${differs.map((e) => `<li><span class="d">${escHtml(shortName(e.a))}</span><span class="e">${escHtml(content.topics.find((x) => x.id === e.t.topic)?.title ?? "")}<small class="clamp">${e.r.reading}</small></span></li>`).join("")}</ul></section>` : ""}
+      <section class="rsec"><div class="sh"><h2 class="lbl">About</h2></div>
         <p class="nar">A comparison of frameworks, not a verdict on who's right. Views are short paraphrases (quotes verbatim), linked and dated. Not affiliated with or endorsed by anyone named. Not investment advice.</p></section>
       ${pops}`;
 
